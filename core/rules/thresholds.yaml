@@ -1,0 +1,19 @@
+# Demo starting values only. Verify each against the cited guideline before relying on it.
+# Every rule needs id, version, source. Rules may only name values the vital carries
+# (blood_pressure: systolic, diastolic).
+version: 1
+rules:
+  - id: bp.crisis
+    version: 1
+    vital: blood_pressure
+    when: "systolic >= 180 or diastolic >= 120"
+    triage: red
+    source: "AHA - Understanding Blood Pressure Readings (hypertensive crisis)"
+  # Day 1 simplification: a single reading at or above 140/90 is amber. The spec's
+  # "3 readings in 7 days" condition needs reading history and comes later.
+  - id: bp.stage2
+    version: 1
+    vital: blood_pressure
+    when: "systolic >= 140 or diastolic >= 90"
+    triage: amber
+    source: "AHA - Understanding Blood Pressure Readings (high blood pressure stage 2)"
