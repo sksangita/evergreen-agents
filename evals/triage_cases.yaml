@@ -1,0 +1,9 @@
+# Table of blood pressure readings and the triage the rules must give.
+- {name: normal, systolic: 120, diastolic: 80, expected: green}
+- {name: just_below_amber, systolic: 139, diastolic: 89, expected: green}
+- {name: amber_at_systolic_edge, systolic: 140, diastolic: 80, expected: amber}
+- {name: amber_at_diastolic_edge, systolic: 130, diastolic: 90, expected: amber}
+- {name: just_below_red, systolic: 179, diastolic: 119, expected: amber}
+- {name: red_at_systolic_edge, systolic: 180, diastolic: 80, expected: red}
+- {name: red_at_diastolic_edge, systolic: 150, diastolic: 120, expected: red}
+- {name: red_example_from_spec, systolic: 186, diastolic: 104, expected: red}
