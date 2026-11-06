@@ -69,6 +69,44 @@ def test_shipped_thresholds_load_and_every_rule_is_documented() -> None:
         assert rule.id and rule.source and rule.version >= 1
 
 
+@pytest.mark.parametrize(
+    "when",
+    ["1", "systolic", "systolic >= 180 or 1", "systolic and diastolic >= 120",
+     "systolic >= 180 or (diastolic >= 120 and systolic)"],
+)
+def test_bare_value_condition_is_rejected(tmp_path: Path, when: str) -> None:
+    path = _write(
+        tmp_path,
+        f'{{id: bp.invalid, version: 1, vital: blood_pressure, when: "{when}", '
+        'triage: red, source: s}',
+    )
+    with pytest.raises(ValueError, match="invalid rule 'bp.invalid'"):
+        load_rules(path)
+
+
+@pytest.mark.parametrize(
+    "when",
+    [
+        "systolic >= 180",
+        "systolic >= 180 or diastolic >= 120",
+        "systolic >= 180 and diastolic >= 120",
+        "systolic >= 180 and (diastolic >= 120 or diastolic == 119)",
+        "180 <= systolic < 200",
+    ],
+)
+@pytest.mark.parametrize(("systolic", "expected"), [(179, Triage.GREEN), (180, Triage.RED)])
+def test_comparison_conditions_load_and_evaluate(
+    tmp_path: Path, when: str, systolic: float, expected: Triage
+) -> None:
+    path = _write(
+        tmp_path,
+        f'{{id: bp.valid, version: 1, vital: blood_pressure, when: "{when}", '
+        'triage: red, source: s}',
+    )
+    decision = triage_reading(_bp(systolic, 120 if "and" in when else 80), load_rules(path))
+    assert decision.triage == expected
+
+
 def test_triage_code_does_not_depend_on_the_llm() -> None:
     rules_dir = Path(__file__).parent.parent / "core" / "rules"
     for source in rules_dir.glob("*.py"):

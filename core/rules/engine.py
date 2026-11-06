@@ -65,9 +65,15 @@ class TriageDecision(BaseModel):
 
 
 def _parse_condition(expression: str, allowed_names: frozenset[str]) -> ast.expr:
-    """Parse a rule condition, allowing only comparisons, and/or, numbers and known names."""
+    """Parse comparisons or and/or combinations of comparisons over known values."""
     body = ast.parse(expression, mode="eval").body
+    if not isinstance(body, ast.Compare | ast.BoolOp):
+        raise ValueError("a condition must be a comparison or and/or of comparisons")
     for node in ast.walk(body):
+        if isinstance(node, ast.BoolOp) and any(
+            not isinstance(operand, ast.Compare | ast.BoolOp) for operand in node.values
+        ):
+            raise ValueError("and/or operands must be comparisons or and/or of comparisons")
         if not isinstance(node, _ALLOWED_NODES):
             raise ValueError(f"{type(node).__name__} is not allowed in a condition")
         if isinstance(node, ast.Name) and node.id not in allowed_names:
