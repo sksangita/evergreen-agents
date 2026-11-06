@@ -1,0 +1,34 @@
+name: check-openai-key
+
+# Temporary: confirms the OPENAI_API_KEY secret can reach OpenAI. Prints the status only.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/check-openai-key.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Key present
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then echo "OPENAI_API_KEY is EMPTY in this run"; exit 1; fi
+          echo "key length: ${#OPENAI_API_KEY}"
+      - name: Call OpenAI
+        run: |
+          code=$(curl -s -o models.json -w '%{http_code}' https://api.openai.com/v1/models \
+            -H "Authorization: Bearer $OPENAI_API_KEY")
+          echo "HTTP status: $code"
+          if [ "$code" = "200" ]; then
+            echo "models visible: $(jq '.data | length' models.json)"
+            echo "codex-capable models: $(jq -r '[.data[].id | select(test("codex|gpt-5|o[0-9]"))] | sort | join(", ")' models.json | cut -c1-300)"
+          else
+            jq -r '.error.type // "unknown"' models.json
+          fi
+          [ "$code" = "200" ]
