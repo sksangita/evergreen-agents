@@ -1,5 +1,6 @@
 """Shared schemas. Agents exchange these types, never free-form strings."""
 
+import math
 from datetime import datetime
 from enum import StrEnum
 from typing import Self
@@ -41,18 +42,34 @@ class VitalReading(BaseModel):
     source: str = "manual"
 
     @model_validator(mode="after")
-    def _has_required_unit(self) -> Self:
-        required = REQUIRED_UNIT[self.kind]
-        if self.unit != required:
-            raise ValueError(f"{self.kind} reading must be in {required}, got {self.unit!r}")
+    def _can_be_judged(self) -> Self:
+        problems = reading_problems(self)
+        if problems:
+            raise ValueError("; ".join(problems))
         return self
 
-    @model_validator(mode="after")
-    def _has_required_values(self) -> Self:
-        missing = REQUIRED_VALUES[self.kind] - self.values.keys()
-        if missing:
-            raise ValueError(f"{self.kind} reading is missing {sorted(missing)}")
-        return self
+
+class InvalidReadingError(ValueError):
+    """A reading the rules cannot judge. Raised instead of returning a triage."""
+
+
+def reading_problems(reading: VitalReading) -> list[str]:
+    """Why a reading cannot be judged, or an empty list if it can.
+
+    Used when a reading is created and again before triage, because a reading built
+    with `model_construct` skips creation checks.
+    """
+    problems: list[str] = []
+    required_unit = REQUIRED_UNIT[reading.kind]
+    if reading.unit != required_unit:
+        problems.append(f"{reading.kind} reading must be in {required_unit}, got {reading.unit!r}")
+    missing = REQUIRED_VALUES[reading.kind] - reading.values.keys()
+    if missing:
+        problems.append(f"{reading.kind} reading is missing {sorted(missing)}")
+    for name, value in sorted(reading.values.items()):
+        if not math.isfinite(value) or value <= 0:
+            problems.append(f"{name} must be a positive number, got {value}")
+    return problems
 
 
 class AgentResult(BaseModel):

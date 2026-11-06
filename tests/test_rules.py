@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 import yaml
 
-from core.contracts import Triage, VitalKind, VitalReading
+from core.contracts import InvalidReadingError, Triage, VitalKind, VitalReading
 from core.rules.engine import load_rules, triage_reading
 
 CASES = yaml.safe_load((Path(__file__).parent.parent / "evals" / "triage_cases.yaml").read_text())
@@ -73,3 +73,38 @@ def test_triage_code_does_not_depend_on_the_llm() -> None:
     rules_dir = Path(__file__).parent.parent / "core" / "rules"
     for source in rules_dir.glob("*.py"):
         assert "llm" not in source.read_text().lower(), source.name
+
+
+def _unchecked(unit: str = "mmHg", values: dict[str, float] | None = None) -> VitalReading:
+    """A reading built with model_construct, which skips every creation check."""
+    return VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 120.0, "diastolic": 80.0} if values is None else values,
+        unit=unit,
+        measured_at=datetime(2026, 11, 2, 8, 12, tzinfo=UTC),
+        source="manual",
+    )
+
+
+@pytest.mark.parametrize(
+    ("reading", "message"),
+    [
+        (_unchecked(unit="kPa", values={"systolic": 24.0, "diastolic": 16.0}), "must be in mmHg"),
+        (_unchecked(values={"systolic": float("nan"), "diastolic": 80.0}), "positive number"),
+        (_unchecked(values={"systolic": 120.0, "diastolic": 0.0}), "positive number"),
+        (_unchecked(values={"systolic": 186.0}), "missing"),
+    ],
+    ids=["kpa", "nan", "zero", "missing_diastolic"],
+)
+def test_unchecked_bad_reading_is_refused_at_triage_not_green(
+    reading: VitalReading, message: str
+) -> None:
+    with pytest.raises(InvalidReadingError, match=message):
+        triage_reading(reading, load_rules())
+
+
+def test_unchecked_but_valid_reading_is_still_triaged() -> None:
+    reading = _unchecked(values={"systolic": 186.0, "diastolic": 104.0})
+    decision = triage_reading(reading, load_rules())
+    assert decision.triage == Triage.RED
