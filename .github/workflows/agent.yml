@@ -1,61 +1,111 @@
 name: agent
 
-# Fires when an issue gets the "ready-for-agent" label, and works that one ticket.
-# The label must be added by the repo owner. The agent opens a PR and never merges.
+# Fires when an issue gets the "ready-for-agent" label (added by the repo owner).
+# Job 1 runs Codex with a read-only token and produces a patch. Job 2 holds the write
+# token, pushes the patch to agent/ticket-<n> and opens a PR. Nothing here merges.
 on:
   issues:
     types: [labeled]
 
 concurrency:
-  group: agent-issue-${{ github.event.issue.number }}
+  group: agent-ticket-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  work-ticket:
+  implement:
     if: github.event.label.name == 'ready-for-agent' && github.actor == github.repository_owner
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: make install
+      - name: Fetch the ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          mkdir -p .agent-context
+          gh issue view "$ISSUE" --json title -q .title > .agent-context/ticket-title.txt
+          gh issue view "$ISSUE" --json body -q .body > .agent-context/ticket-body.md
+      - name: Run Codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/agent/implement.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          output-file: .agent-context/final.md
+      - name: Collect the patch
+        run: |
+          git add -A
+          git diff --cached --binary > .agent-context/agent.patch
+          git diff --cached --stat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-output
+          path: |
+            .agent-context/agent.patch
+            .agent-context/final.md
+
+  open-pr:
+    needs: implement
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
       issues: write
-      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+      BRANCH: agent/ticket-${{ github.event.issue.number }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
-      - run: make install
-      - uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ github.token }}
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            You are working ticket #${{ github.event.issue.number }} in ${{ github.repository }}.
-
-            1. Read the ticket with `gh issue view ${{ github.event.issue.number }}` and read AGENTS.md.
-               Follow every rule in AGENTS.md. Work only on this one ticket.
-            2. Create a branch named `agent/ticket-${{ github.event.issue.number }}`.
-            3. Implement the change with tests. Run `make lint` and `make test` until they pass.
-            4. Check the behaviour by hand against EVERY acceptance criterion and the ticket's
-               edge or failure case. Quote the commands and results.
-            5. Push and open a PR into main. The description must contain the ticket link
-               (`Closes #${{ github.event.issue.number }}`), the acceptance criteria as a checklist,
-               and what you checked.
-            6. Wait for Qodo's review of the PR: poll `gh api repos/${{ github.repository }}/issues/<pr>/comments`
-               every 60 seconds for up to 10 minutes. Investigate each finding: reproduce it,
-               then fix confirmed problems, re-run the checks and push. Ignore irrelevant findings
-               but say why.
-            7. Retry limit: at most 2 fix rounds after the first PR. If checks still fail, the
-               review still has confirmed open findings, or you are blocked for any reason, STOP.
-               Add the label `agent-blocked` to the ticket and comment what you tried and where
-               you are stuck.
-            8. Finish by commenting on the ticket with a short run note: PR link, checks run and
-               results, Qodo findings and what you did about each, retries used, any blocker.
-
-            Hard limits: never merge a PR, never push to main, never edit anything under
-            `.github/`, and never print secrets. A human decides whether to merge.
-          claude_args: |
-            --max-turns 80
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(git:*),Bash(gh:*),Bash(make:*),Bash(uv run:*),Bash(sleep:*)"
+          name: agent-output
+          path: out
+      - name: Refuse an empty or unsafe patch
+        run: |
+          if [ ! -s out/agent.patch ]; then
+            gh issue edit "$ISSUE" --add-label agent-blocked
+            gh issue comment "$ISSUE" --body "The agent produced no changes. Stopping for a person to look. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            exit 1
+          fi
+          if git apply --numstat out/agent.patch | cut -f3 | grep -q '^\.github/'; then
+            gh issue edit "$ISSUE" --add-label agent-blocked
+            gh issue comment "$ISSUE" --body "The agent tried to change .github/, which AGENTS.md forbids. Stopping for a person to look."
+            exit 1
+          fi
+      - name: Push the branch
+        run: |
+          git config user.name "evergreen-agent"
+          git config user.email "evergreen-agent@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git apply --index out/agent.patch
+          git commit -m "Implement #$ISSUE (automated agent run)"
+          git push origin "$BRANCH"
+      - name: Open the PR
+        run: |
+          TITLE=$(gh issue view "$ISSUE" --json title -q .title)
+          gh issue view "$ISSUE" --json body -q .body > ticket-body.md
+          {
+            echo "Closes #$ISSUE"
+            echo "Ticket: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/issues/$ISSUE"
+            echo
+            echo "## Acceptance criteria (from the ticket)"
+            awk '/^## Acceptance criteria/{f=1;next} /^## /{f=0} f' ticket-body.md
+            echo
+            echo "## Agent's report"
+            cat out/final.md
+            echo
+            echo "Opened automatically by the agent workflow. A person decides whether to merge."
+          } > pr-body.md
+          URL=$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --body-file pr-body.md)
+          gh issue comment "$ISSUE" --body "Agent opened $URL. Waiting for Qodo's review."

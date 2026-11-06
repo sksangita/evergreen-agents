@@ -63,10 +63,11 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 ## Automated runs
 
-A ticket labelled `ready-for-agent` starts `.github/workflows/agent.yml`, which works that one ticket.
+A ticket labelled `ready-for-agent` starts `.github/workflows/agent.yml`, which runs Codex on that one ticket. When Qodo reviews the resulting PR, `.github/workflows/agent-fix.yml` runs Codex on its findings.
 
-- The agent takes one ticket per run, on a branch named `agent/ticket-<n>`, and opens a PR that links the ticket and quotes its acceptance criteria.
-- It runs `make lint` and `make test`, then checks every acceptance criterion by hand, including the ticket's failure case.
-- It investigates Qodo's findings and fixes only confirmed problems. It gets at most 2 fix rounds.
-- If it is stuck, it adds the `agent-blocked` label to the ticket and stops with a comment on what it tried.
+- The agent takes one ticket per run, on a branch named `agent/ticket-<n>`, and opens a PR that links the ticket and quotes its acceptance criteria. The model runs with a read-only token and produces a patch. A separate job holds the write token and pushes it.
+- It runs `make lint` and `make test`, then checks every acceptance criterion by hand, including the ticket's failure case, and reports the commands and results in the PR.
+- It investigates Qodo's findings and fixes only confirmed problems. It gets at most 2 fix rounds, tracked with the `fix-round-1` and `fix-round-2` labels.
+- If it is stuck, or the patch is empty or touches `.github/`, it adds the `agent-blocked` label and stops with a comment.
 - It never merges, never pushes to `main`, and never edits `.github/`. A person decides whether to merge.
+- Fallback: a local poller running `claude -p` can replace the GitHub trigger if the hosted run misbehaves.

@@ -1,0 +1,136 @@
+name: agent-fix
+
+# Fires when Qodo's review comment appears on an agent/ PR. Codex investigates the findings
+# and fixes confirmed ones. Retry limit: 2 rounds, tracked with fix-round-N labels.
+on:
+  issue_comment:
+    types: [created, edited]
+
+concurrency:
+  group: agent-fix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.login == 'qodo-code-review[bot]' &&
+      contains(github.event.comment.body, 'Code Review by Qodo') &&
+      !contains(github.event.comment.body, 'no open findings') &&
+      !contains(github.event.comment.body, 'no issues found')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      branch: ${{ steps.decide.outputs.branch }}
+      round: ${{ steps.decide.outputs.round }}
+    steps:
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          info=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefName,labels)
+          branch=$(jq -r .headRefName <<<"$info")
+          labels=$(jq -r '.labels[].name' <<<"$info")
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          case "$branch" in agent/*) ;; *) echo "run=false" >> "$GITHUB_OUTPUT"; exit 0;; esac
+          if grep -qx agent-blocked <<<"$labels"; then echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          round=1
+          if grep -qx fix-round-1 <<<"$labels"; then round=2; fi
+          if grep -qx fix-round-2 <<<"$labels"; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label agent-blocked
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Retry limit reached (2 fix rounds) and Qodo still has findings. Stopping for a person to look."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "round=$round" >> "$GITHUB_OUTPUT"
+
+  fix:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.branch }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: make install
+      - name: Collect the review and PR description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+          REVIEW: ${{ github.event.comment.body }}
+        run: |
+          mkdir -p .agent-context
+          printf '%s\n' "$REVIEW" > .agent-context/review.md
+          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body -q .body > .agent-context/pr-body.md
+      - name: Run Codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/agent/fix.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          output-file: .agent-context/final.md
+      - name: Collect the patch
+        run: |
+          git add -A
+          git diff --cached --binary > .agent-context/agent.patch
+          git diff --cached --stat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-fix-output
+          path: |
+            .agent-context/agent.patch
+            .agent-context/final.md
+
+  push:
+    needs: [gate, fix]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.issue.number }}
+      ROUND: ${{ needs.gate.outputs.round }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.branch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-fix-output
+          path: out
+      - name: Push the fixes
+        run: |
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "fix-round-$ROUND"
+          if [ ! -s out/agent.patch ]; then
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Fix round $ROUND: the agent found nothing to change.
+
+          $(cat out/final.md)"
+            exit 0
+          fi
+          if git apply --numstat out/agent.patch | cut -f3 | grep -q '^\.github/'; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label agent-blocked
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "The agent tried to change .github/, which AGENTS.md forbids. Stopping for a person to look."
+            exit 1
+          fi
+          git config user.name "evergreen-agent"
+          git config user.email "evergreen-agent@users.noreply.github.com"
+          git apply --index out/agent.patch
+          git commit -m "Address Qodo review findings (automated fix round $ROUND)"
+          git push
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "Fix round $ROUND pushed.
+
+          $(cat out/final.md)"
