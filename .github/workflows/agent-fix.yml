@@ -77,6 +77,14 @@ jobs:
         run: |
           sudo useradd --create-home --shell /bin/bash codex
           sudo chown -R codex:codex "$GITHUB_WORKSPACE"
+          # The codex user must be able to walk down to the workspace (/home/runner is not
+          # traversable by other users on the hosted runner).
+          d="$GITHUB_WORKSPACE"
+          while [ "$d" != / ]; do d=$(dirname "$d"); if [ -O "$d" ]; then chmod o+x "$d"; fi; done
+          namei -m "$GITHUB_WORKSPACE"
+          sudo -u codex test -r "$GITHUB_WORKSPACE/Makefile" \
+            || { echo "codex user cannot read the workspace"; exit 1; }
+          sudo -u codex "$GITHUB_WORKSPACE/.venv/bin/python" -c "print('codex user can run the venv python')"
       - name: Run Codex
         uses: openai/codex-action@v1
         with:
