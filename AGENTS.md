@@ -36,7 +36,7 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 ### 2. Bad input is rejected, never green (the "No Silent Green" rule)
 
-- **Applies to:** `core/contracts.py` and `core/rules/`. A reading that cannot be judged (wrong unit, NaN, zero, negative, unexpected keys) must raise an error when it is created. A rule condition must be a comparison, or `and`/`or` of comparisons, never a bare number or name, and anything else is rejected when the file loads. "No rule matched" is only valid for a reading that was validated first.
+- **Applies to:** `core/contracts.py` and `core/rules/`. A reading that cannot be judged (wrong unit, NaN, zero, negative, unexpected keys) must raise an error when it is created. A rule condition must be a comparison, or `and`/`or` of comparisons, never a bare number or name, and anything else is rejected when the file loads. "No rule matched" is only valid for a reading that was validated first. A reading that cannot be judged always raises `InvalidReadingError`, and `reading_problems()` and `triage_reading` must never fail with any other error, whatever the input (including readings built with `model_construct`).
 - **Why:** green is the answer that looks like good news. In a safety system, data the rules do not understand must fail loudly. Qodo's one high-severity finding on PR #1 was a kPa reading of about 180/120 mmHg being triaged green, and a rule such as `when: "1"` would match every reading.
 
 ### 3. No personal data in logs or prompts

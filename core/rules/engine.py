@@ -10,7 +10,14 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from core.contracts import REQUIRED_VALUES, Triage, VitalKind, VitalReading
+from core.contracts import (
+    REQUIRED_VALUES,
+    InvalidReadingError,
+    Triage,
+    VitalKind,
+    VitalReading,
+    reading_problems,
+)
 
 DEFAULT_THRESHOLDS = Path(__file__).parent / "thresholds.yaml"
 
@@ -117,7 +124,14 @@ def load_rules(path: Path = DEFAULT_THRESHOLDS) -> RuleSet:
 
 
 def triage_reading(reading: VitalReading, rules: RuleSet) -> TriageDecision:
-    """Return the most severe level among matching rules, or green if none match."""
+    """Return the most severe level among matching rules, or green if none match.
+
+    Raises InvalidReadingError for a reading the rules cannot judge, so "no rule matched"
+    never means green for bad data, however the reading was built.
+    """
+    problems = reading_problems(reading)
+    if problems:
+        raise InvalidReadingError("; ".join(problems))
     matched = [
         rule
         for rule, condition in rules.rules

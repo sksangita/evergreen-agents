@@ -5,7 +5,7 @@ import pytest
 
 from agents.health_sentinel import HealthSentinel
 from agents.health_sentinel.templates import ELDER_FALLBACK
-from core.contracts import Triage, VitalKind, VitalReading
+from core.contracts import InvalidReadingError, Triage, VitalKind, VitalReading
 from core.llm import FakeProvider, LLMClient
 from core.llm.prompts import explain_triage_prompt
 from core.rules.engine import load_rules
@@ -105,3 +105,16 @@ def test_no_health_values_in_logs(caplog: pytest.LogCaptureFixture) -> None:
     assert "186" not in caplog.text
     assert "104" not in caplog.text
     assert "e_001" not in caplog.text
+
+
+def test_agent_refuses_an_unchecked_bad_reading() -> None:
+    bad = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 24.0, "diastolic": 16.0},
+        unit="kPa",
+        measured_at=datetime(2026, 11, 2, 8, 12, tzinfo=UTC),
+        source="manual",
+    )
+    with pytest.raises(InvalidReadingError):
+        _agent(FakeProvider()).assess(bad, "tr_1")
