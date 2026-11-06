@@ -24,6 +24,12 @@ REQUIRED_VALUES: dict[VitalKind, frozenset[str]] = {
 }
 
 
+# The only unit each kind's thresholds are written in. Other units are rejected, not converted.
+REQUIRED_UNIT: dict[VitalKind, str] = {
+    VitalKind.BLOOD_PRESSURE: "mmHg",
+}
+
+
 class VitalReading(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -33,6 +39,13 @@ class VitalReading(BaseModel):
     unit: str
     measured_at: datetime
     source: str = "manual"
+
+    @model_validator(mode="after")
+    def _has_required_unit(self) -> Self:
+        required = REQUIRED_UNIT[self.kind]
+        if self.unit != required:
+            raise ValueError(f"{self.kind} reading must be in {required}, got {self.unit!r}")
+        return self
 
     @model_validator(mode="after")
     def _has_required_values(self) -> Self:
