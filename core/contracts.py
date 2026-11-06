@@ -59,15 +59,31 @@ def reading_problems(reading: VitalReading) -> list[str]:
     Used when a reading is created and again before triage, because a reading built
     with `model_construct` skips creation checks.
     """
+    # model_construct can leave any field unset or wrongly typed, so read defensively.
+    # Whatever the input, report problems; never raise anything but InvalidReadingError.
+    kind = getattr(reading, "kind", None)
+    if kind not in REQUIRED_UNIT:
+        return [f"unsupported vital kind {str(kind)!r}"]
+    values = getattr(reading, "values", None)
+    if not isinstance(values, dict):
+        return [f"{kind} reading has no measurements"]
+
     problems: list[str] = []
-    required_unit = REQUIRED_UNIT[reading.kind]
-    if reading.unit != required_unit:
-        problems.append(f"{reading.kind} reading must be in {required_unit}, got {reading.unit!r}")
-    missing = REQUIRED_VALUES[reading.kind] - reading.values.keys()
+    required_unit = REQUIRED_UNIT[kind]
+    unit = getattr(reading, "unit", None)
+    if unit != required_unit:
+        problems.append(f"{kind} reading must be in {required_unit}, got {unit!r}")
+    names = {str(name) for name in values}
+    missing = REQUIRED_VALUES[kind] - names
     if missing:
-        problems.append(f"{reading.kind} reading is missing {sorted(missing)}")
-    for name, value in sorted(reading.values.items()):
-        if not math.isfinite(value) or value <= 0:
+        problems.append(f"{kind} reading is missing {sorted(missing)}")
+    unexpected = names - REQUIRED_VALUES[kind]
+    if unexpected:
+        problems.append(f"{kind} reading has unexpected measurements {sorted(unexpected)}")
+    for name, value in sorted(values.items(), key=lambda item: str(item[0])):
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            problems.append(f"{name} must be a number, got {type(value).__name__}")
+        elif not math.isfinite(value) or value <= 0:
             problems.append(f"{name} must be a positive number, got {value}")
     return problems
 

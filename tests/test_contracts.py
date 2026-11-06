@@ -63,3 +63,8 @@ def test_non_finite_zero_or_negative_value_is_rejected(field: str, bad: float) -
 
 def test_normal_reading_is_still_accepted() -> None:
     assert _reading({"systolic": 120, "diastolic": 80}).values["diastolic"] == 80
+
+
+def test_unexpected_measurement_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="unexpected measurements"):
+        _reading({"systolic": 120, "diastolic": 80, "untrusted_note": 1})

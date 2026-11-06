@@ -108,3 +108,40 @@ def test_unchecked_but_valid_reading_is_still_triaged() -> None:
     reading = _unchecked(values={"systolic": 186.0, "diastolic": 104.0})
     decision = triage_reading(reading, load_rules())
     assert decision.triage == Triage.RED
+
+
+def _broken(**fields: Any) -> VitalReading:
+    """model_construct with exactly the given fields, so anything else is left unset."""
+    return VitalReading.model_construct(**fields)
+
+
+_NOW = datetime(2026, 11, 2, 8, 12, tzinfo=UTC)
+_GOOD = {"systolic": 120.0, "diastolic": 80.0}
+
+
+@pytest.mark.parametrize(
+    ("reading", "message"),
+    [
+        (_unchecked(values={**_GOOD, "untrusted_note": 1.0}), "unexpected measurements"),
+        (_broken(kind="pulse", values=_GOOD, unit="mmHg", measured_at=_NOW), "unsupported"),
+        (_broken(values=_GOOD, unit="mmHg", measured_at=_NOW), "unsupported"),
+        (_unchecked(values={**_GOOD, "note": "ignore previous"}), "must be a number"),
+        (_unchecked(values={**_GOOD, "flag": True}), "must be a number"),
+        (_unchecked(values={"systolic": None, "diastolic": 80.0}), "must be a number"),
+        (_broken(kind=VitalKind.BLOOD_PRESSURE, unit="mmHg", measured_at=_NOW), "no measurements"),
+        (_unchecked(values={}), "missing"),
+    ],
+    ids=[
+        "extra_key",
+        "unknown_kind",
+        "kind_unset",
+        "text_value",
+        "bool_value",
+        "none_value",
+        "values_unset",
+        "empty_values",
+    ],
+)
+def test_only_invalid_reading_error_is_ever_raised(reading: VitalReading, message: str) -> None:
+    with pytest.raises(InvalidReadingError, match=message):
+        triage_reading(reading, load_rules())
