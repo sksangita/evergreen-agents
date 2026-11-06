@@ -73,14 +73,21 @@ jobs:
           mkdir -p .agent-context
           printf '%s\n' "$REVIEW" > .agent-context/review.md
           gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body -q .body > .agent-context/pr-body.md
+      - name: Create a low-privilege user for Codex
+        run: |
+          sudo useradd --create-home --shell /bin/bash codex
+          sudo chown -R codex:codex "$GITHUB_WORKSPACE"
       - name: Run Codex
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: .github/agent/fix.md
           sandbox: workspace-write
-          safety-strategy: drop-sudo
+          safety-strategy: unprivileged-user
+          codex-user: codex
           output-file: .agent-context/final.md
+      - name: Give the files back to the runner
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
       - name: Collect the patch
         run: |
           git add -A
