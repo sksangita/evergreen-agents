@@ -60,3 +60,13 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 - The amber rule is a single reading at or above 140/90. The spec's "3 readings in 7 days" needs history and comes later.
 - Thresholds are demo values and the cited sources are not yet verified.
 - The Safety guardrail, escalation service, API and web app are not built yet.
+
+## Automated runs
+
+A ticket labelled `ready-for-agent` starts `.github/workflows/agent.yml`, which works that one ticket.
+
+- The agent takes one ticket per run, on a branch named `agent/ticket-<n>`, and opens a PR that links the ticket and quotes its acceptance criteria.
+- It runs `make lint` and `make test`, then checks every acceptance criterion by hand, including the ticket's failure case.
+- It investigates Qodo's findings and fixes only confirmed problems. It gets at most 2 fix rounds.
+- If it is stuck, it adds the `agent-blocked` label to the ticket and stops with a comment on what it tried.
+- It never merges, never pushes to `main`, and never edits `.github/`. A person decides whether to merge.

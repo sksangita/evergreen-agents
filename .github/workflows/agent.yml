@@ -1,0 +1,61 @@
+name: agent
+
+# Fires when an issue gets the "ready-for-agent" label, and works that one ticket.
+# The label must be added by the repo owner. The agent opens a PR and never merges.
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: agent-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  work-ticket:
+    if: github.event.label.name == 'ready-for-agent' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: make install
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are working ticket #${{ github.event.issue.number }} in ${{ github.repository }}.
+
+            1. Read the ticket with `gh issue view ${{ github.event.issue.number }}` and read AGENTS.md.
+               Follow every rule in AGENTS.md. Work only on this one ticket.
+            2. Create a branch named `agent/ticket-${{ github.event.issue.number }}`.
+            3. Implement the change with tests. Run `make lint` and `make test` until they pass.
+            4. Check the behaviour by hand against EVERY acceptance criterion and the ticket's
+               edge or failure case. Quote the commands and results.
+            5. Push and open a PR into main. The description must contain the ticket link
+               (`Closes #${{ github.event.issue.number }}`), the acceptance criteria as a checklist,
+               and what you checked.
+            6. Wait for Qodo's review of the PR: poll `gh api repos/${{ github.repository }}/issues/<pr>/comments`
+               every 60 seconds for up to 10 minutes. Investigate each finding: reproduce it,
+               then fix confirmed problems, re-run the checks and push. Ignore irrelevant findings
+               but say why.
+            7. Retry limit: at most 2 fix rounds after the first PR. If checks still fail, the
+               review still has confirmed open findings, or you are blocked for any reason, STOP.
+               Add the label `agent-blocked` to the ticket and comment what you tried and where
+               you are stuck.
+            8. Finish by commenting on the ticket with a short run note: PR link, checks run and
+               results, Qodo findings and what you did about each, retries used, any blocker.
+
+            Hard limits: never merge a PR, never push to main, never edit anything under
+            `.github/`, and never print secrets. A human decides whether to merge.
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(git:*),Bash(gh:*),Bash(make:*),Bash(uv run:*),Bash(sleep:*)"
