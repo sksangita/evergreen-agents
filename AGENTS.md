@@ -31,8 +31,8 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 ### 1. Rules decide triage, the LLM only explains it (the "No Model Verdicts" rule)
 
-- **Applies to:** anything that sets `triage` or `requires_escalation`. Only `core/rules` (and `core/baseline` when it exists) may do that. Code in `agents/` reads the decision and never changes it. All model access goes through `core/llm`, the only place allowed to import an LLM or embedding SDK. Every call has a timeout, a template fallback and a test for that fallback. Text for an elder must not be shown unless it passes the guardrail checks, once those exist.
-- **Why:** triage must be reproducible and testable without a model, and a model outage must never hide an alert. Model text can be wrong or contradict the decision, as when a reply like "Everything is fine!" came back for a red reading.
+- **Applies to:** anything that sets `triage` or `requires_escalation`. Only `core/rules` (and `core/baseline` when it exists) may do that. Code in `agents/` reads the decision and never changes it. All model access goes through `core/llm`, the only place allowed to import an LLM or embedding SDK. Every call has a timeout, a template fallback and a test for that fallback. The timeout must be enforced by the provider call itself (for example an HTTP client timeout), not only by abandoning a worker thread, and a test must show that a stalled call does not delay process exit. Text for an elder must not be shown unless it passes the guardrail checks, once those exist.
+- **Why:** triage must be reproducible and testable without a model. A model outage must never hide an alert, and a call that never returns must not keep the process that sends the alert from exiting. Model text can be wrong or contradict the decision, as when a reply like "Everything is fine!" came back for a red reading.
 
 ### 2. Bad input is rejected, never green (the "No Silent Green" rule)
 
@@ -56,7 +56,7 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 ### 6. Times carry a date and a timezone
 
-- **Applies to:** `VitalReading.measured_at` and any text shown to an elder or caregiver that says when something happened. `measured_at` must be timezone-aware, and a naive datetime is rejected when the reading is created. A displayed time includes the date and zone, for example `2026-11-06 08:12 UTC`. New code that compares or counts time, such as the escalation service's 15-minute acknowledgement window and the daily digest, uses timezone-aware values.
+- **Applies to:** `VitalReading.measured_at` and any text shown to an elder or caregiver that says when something happened. `measured_at` must be timezone-aware, and a naive datetime is rejected when the reading is created. A displayed time includes the date and zone, for example `2026-11-06 08:12 UTC`. New code that compares or counts time, such as the escalation service's 15-minute acknowledgement window and the daily digest, uses timezone-aware values. A change to `VitalReading` or to code that displays a time includes a test that a naive datetime is rejected and an aware one is accepted.
 - **Why:** "08:12" does not say which day or which clock. A caregiver judging how urgent an alert is, and the escalation timers, both depend on knowing exactly when a reading was taken. Qodo's review of PR #1 flagged a caregiver message that showed a UTC clock time that looked like local time.
 
 ## Known gaps (please do not flag these)
@@ -65,7 +65,13 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 - The amber rule is a single reading at or above 140/90. The spec's "3 readings in 7 days" needs history and comes later.
 - Thresholds are demo values and the cited sources are not yet verified.
 - The Safety guardrail, escalation service, API and web app are not built yet.
-- Rule 6 is not yet true of the code: `measured_at` accepts naive datetimes and caregiver messages show the clock time only. Tracked in #13.
+
+## Open rule gaps (flag new violations, not these existing ones)
+
+These rules are not yet true of the existing code. Each has a ticket. Reviewers and agents should still flag any NEW code that breaks the rule, and any change that makes the gap worse.
+
+- Rule 1, enforced timeouts: the LLM client stops waiting after the timeout but does not stop a stalled provider call, which can keep the process from exiting. Tracked in #15.
+- Rule 6, times: `measured_at` accepts naive datetimes and caregiver messages show the clock time only. Tracked in #13.
 
 ## Automated runs
 
