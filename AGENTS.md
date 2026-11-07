@@ -54,12 +54,18 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 - **Applies to:** adding anything to `VitalKind` (glucose, SpO2, heart rate).
 - **Why:** a vital with no rules matches nothing and would silently triage green, which is the "No Silent Green" problem again. Add its allowed unit, its required values, its thresholds with sources, and edge-case tests in the same PR.
 
+### 6. Times carry a date and a timezone
+
+- **Applies to:** `VitalReading.measured_at` and any text shown to an elder or caregiver that says when something happened. `measured_at` must be timezone-aware, and a naive datetime is rejected when the reading is created. A displayed time includes the date and zone, for example `2026-11-06 08:12 UTC`. New code that compares or counts time, such as the escalation service's 15-minute acknowledgement window and the daily digest, uses timezone-aware values.
+- **Why:** "08:12" does not say which day or which clock. A caregiver judging how urgent an alert is, and the escalation timers, both depend on knowing exactly when a reading was taken. Qodo's review of PR #1 flagged a caregiver message that showed a UTC clock time that looked like local time.
+
 ## Known gaps (please do not flag these)
 
 - Only the fake LLM provider exists. The Anthropic provider comes later.
 - The amber rule is a single reading at or above 140/90. The spec's "3 readings in 7 days" needs history and comes later.
 - Thresholds are demo values and the cited sources are not yet verified.
 - The Safety guardrail, escalation service, API and web app are not built yet.
+- Rule 6 is not yet true of the code: `measured_at` accepts naive datetimes and caregiver messages show the clock time only. Tracked in #13.
 
 ## Automated runs
 
