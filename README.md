@@ -9,3 +9,22 @@ make install   # set up the environment
 make test      # run tests
 make lint      # ruff + mypy
 ```
+
+## Choosing the LLM provider
+
+The model only words the explanation. Rules decide triage, and any model failure falls back to a
+fixed template.
+
+| Variable | Meaning |
+|---|---|
+| `LLM_PROVIDER` | `fake` (default, offline) or `openai` |
+| `OPENAI_API_KEY` | required when `LLM_PROVIDER=openai` |
+| `LLM_MODEL_SMALL` | model name for the explanation, for example `gpt-5-mini` |
+
+```bash
+LLM_PROVIDER=openai OPENAI_API_KEY=... LLM_MODEL_SMALL=gpt-5-mini \
+  uv run python -m agents.health_sentinel 186 104
+```
+
+The `openai` provider is **demo-only until the Safety guardrail (#6) exists**: without it, model
+text reaches the elder unchecked. The prompt contains the reading values, so use synthetic data only.
