@@ -91,7 +91,8 @@ class LLMClient:
 
 def get_client() -> LLMClient:
     """Build the client from LLM_PROVIDER: `fake` (default) or `openai` (needs OPENAI_API_KEY
-    and LLM_MODEL_SMALL). A missing setting fails here, never silently falls back to the fake."""
+    and LLM_MODEL_SMALL; LLM_REASONING_EFFORT is optional). A missing or invalid setting fails
+    here, never silently falls back to the fake."""
     name = os.environ.get("LLM_PROVIDER", "fake")
     if name == "fake":
         return LLMClient(FakeProvider())
@@ -100,6 +101,10 @@ def get_client() -> LLMClient:
         if missing:
             raise ValueError(f"LLM_PROVIDER=openai needs {' and '.join(missing)} to be set")
         return LLMClient(
-            OpenAIProvider(os.environ["OPENAI_API_KEY"], os.environ["LLM_MODEL_SMALL"])
+            OpenAIProvider(
+                os.environ["OPENAI_API_KEY"],
+                os.environ["LLM_MODEL_SMALL"],
+                reasoning_effort=os.environ.get("LLM_REASONING_EFFORT") or None,
+            )
         )
     raise ValueError(f"unsupported LLM_PROVIDER {name!r} (expected 'fake' or 'openai')")

@@ -20,6 +20,7 @@ fixed template.
 | `LLM_PROVIDER` | `fake` (default, offline) or `openai` |
 | `OPENAI_API_KEY` | required when `LLM_PROVIDER=openai` |
 | `LLM_MODEL_SMALL` | model name for the explanation, for example `gpt-5-mini` |
+| `LLM_REASONING_EFFORT` | optional: `none`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`. Sent only when set. Lower effort uses fewer hidden tokens and answers faster. A model that does not accept the value gets a 400 and the template is shown. |
 
 ```bash
 LLM_PROVIDER=openai OPENAI_API_KEY=... LLM_MODEL_SMALL=gpt-5-mini \

@@ -59,6 +59,39 @@ def test_request_shape_and_auth() -> None:
     assert OPENAI_MAX_COMPLETION_TOKENS >= 4000
 
 
+def _sent_body(provider_kwargs: dict[str, str]) -> dict[str, object]:
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
+
+    provider = OpenAIProvider(
+        KEY, "test-model", transport=httpx.MockTransport(handler), **provider_kwargs
+    )
+    provider.complete("p", timeout=1.0)
+    return seen[0]
+
+
+def test_reasoning_effort_is_not_sent_by_default() -> None:
+    assert "reasoning_effort" not in _sent_body({})
+
+
+def test_reasoning_effort_is_sent_when_set() -> None:
+    assert _sent_body({"reasoning_effort": "low"})["reasoning_effort"] == "low"
+
+
+def test_unsupported_reasoning_effort_value_is_rejected() -> None:
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        OpenAIProvider(KEY, "m", reasoning_effort="turbo")
+
+
+def test_http_400_from_a_model_that_rejects_a_parameter_falls_back() -> None:
+    response = _complete(_provider(lambda request: httpx.Response(400, text="unsupported")))
+    assert response.text == FALLBACK
+    assert response.used_fallback
+
+
 def test_http_500_falls_back() -> None:
     response = _complete(_provider(lambda request: httpx.Response(500, text="boom")))
     assert response.text == FALLBACK
@@ -181,6 +214,37 @@ def test_get_client_builds_the_openai_provider(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("OPENAI_API_KEY", KEY)
     monkeypatch.setenv("LLM_MODEL_SMALL", "test-model")
     assert isinstance(get_client()._provider, OpenAIProvider)
+
+
+def test_get_client_passes_reasoning_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", KEY)
+    monkeypatch.setenv("LLM_MODEL_SMALL", "test-model")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "minimal")
+    provider = get_client()._provider
+    assert isinstance(provider, OpenAIProvider)
+    assert provider._reasoning_effort == "minimal"
+
+
+def test_get_client_treats_an_empty_reasoning_effort_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", KEY)
+    monkeypatch.setenv("LLM_MODEL_SMALL", "test-model")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "")
+    provider = get_client()._provider
+    assert isinstance(provider, OpenAIProvider)
+    assert provider._reasoning_effort is None
+
+
+def test_get_client_rejects_a_bad_reasoning_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", KEY)
+    monkeypatch.setenv("LLM_MODEL_SMALL", "test-model")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "turbo")
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        get_client()
 
 
 @pytest.mark.parametrize(

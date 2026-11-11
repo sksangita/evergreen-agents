@@ -40,6 +40,9 @@ OPENAI_BASE_URL = "https://api.openai.com"
 # small budget on thinking and return no text (Qodo finding on PR #19), so it is kept generous.
 # The client timeout still bounds how long a call may take.
 OPENAI_MAX_COMPLETION_TOKENS = 4000
+# Values OpenAI documents for `reasoning_effort`. Which ones a model accepts varies, so this only
+# rejects typos; an unsupported value makes the API answer 400 and the template is shown.
+REASONING_EFFORTS = frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"})
 
 
 class OpenAIProvider:
@@ -52,24 +55,33 @@ class OpenAIProvider:
         model: str,
         *,
         base_url: str = OPENAI_BASE_URL,
+        reasoning_effort: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if not api_key or not model:
             raise ValueError("OpenAIProvider needs a non-empty api_key and model")
+        if reasoning_effort is not None and reasoning_effort not in REASONING_EFFORTS:
+            raise ValueError(
+                f"reasoning_effort must be one of {', '.join(sorted(REASONING_EFFORTS))}"
+            )
+        self._reasoning_effort = reasoning_effort
         self._api_key = api_key
         self._model = model
         self._url = f"{base_url.rstrip('/')}/v1/chat/completions"
         self._http = httpx.Client(transport=transport)
 
     def complete(self, prompt: str, *, timeout: float) -> str:
+        body: dict[str, Any] = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_completion_tokens": OPENAI_MAX_COMPLETION_TOKENS,
+        }
+        if self._reasoning_effort is not None:  # opt-in: models that lack it would answer 400
+            body["reasoning_effort"] = self._reasoning_effort
         response = self._http.post(
             self._url,
             headers={"Authorization": f"Bearer {self._api_key}"},
-            json={
-                "model": self._model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_completion_tokens": OPENAI_MAX_COMPLETION_TOKENS,
-            },
+            json=body,
             timeout=httpx.Timeout(timeout),  # connect, read, write and pool all end by themselves
         )
         response.raise_for_status()
