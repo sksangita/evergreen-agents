@@ -36,8 +36,10 @@ class FakeProvider:
 
 
 OPENAI_BASE_URL = "https://api.openai.com"
-# Reasoning models count their hidden thinking against this limit, so it is kept generous.
-OPENAI_MAX_COMPLETION_TOKENS = 1000
+# The limit covers hidden reasoning as well as the visible text. A reasoning model can spend a
+# small budget on thinking and return no text (Qodo finding on PR #19), so it is kept generous.
+# The client timeout still bounds how long a call may take.
+OPENAI_MAX_COMPLETION_TOKENS = 4000
 
 
 class OpenAIProvider:

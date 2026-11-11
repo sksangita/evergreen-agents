@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from core.llm import LLMClient, LLMResponse, OpenAIProvider, get_client
+from core.llm.providers import OPENAI_MAX_COMPLETION_TOKENS
 
 FALLBACK = "template text"
 KEY = "sk-test-SECRET-key-123"
@@ -53,6 +54,9 @@ def test_request_shape_and_auth() -> None:
     assert request.headers["Authorization"] == f"Bearer {KEY}"
     assert body["model"] == "test-model"
     assert body["messages"] == [{"role": "user", "content": "a prompt"}]
+    # Reasoning tokens share this limit, so it must leave room for text (Qodo finding on PR #19).
+    assert body["max_completion_tokens"] == OPENAI_MAX_COMPLETION_TOKENS
+    assert OPENAI_MAX_COMPLETION_TOKENS >= 4000
 
 
 def test_http_500_falls_back() -> None:
@@ -83,6 +87,14 @@ def test_read_timeout_falls_back() -> None:
 )
 def test_malformed_response_falls_back(handler: Callable[[httpx.Request], httpx.Response]) -> None:
     response = _complete(_provider(handler))
+    assert response.text == FALLBACK
+    assert response.used_fallback
+
+
+def test_reply_cut_off_by_the_token_limit_falls_back() -> None:
+    """A reasoning model that spends its whole budget thinking returns empty text."""
+    body = {"choices": [{"finish_reason": "length", "message": {"content": ""}}]}
+    response = _complete(_provider(lambda request: httpx.Response(200, json=body)))
     assert response.text == FALLBACK
     assert response.used_fallback
 
