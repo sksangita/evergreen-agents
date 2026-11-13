@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 
 import pytest
 
@@ -178,3 +178,40 @@ def test_agent_refuses_an_unchecked_reading_whose_time_cannot_be_shown(moment: d
     )
     with pytest.raises(InvalidReadingError, match="supported date range"):
         _agent(FakeProvider()).assess(unshowable, "tr_1")
+
+
+class _LyingDatetime(datetime):
+    """A datetime subclass whose astimezone() ignores the target zone and returns itself."""
+
+    def astimezone(self, tz: tzinfo | None = None) -> "_LyingDatetime":  # type: ignore[override]
+        return self
+
+
+def _lying_time() -> datetime:
+    return _LyingDatetime(2026, 11, 6, 8, 12, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+
+
+def test_caregiver_message_is_true_utc_even_if_astimezone_is_overridden() -> None:
+    """Qodo finding on PR #21: 08:12 at +05:30 is 02:42 UTC, never '08:12 UTC'."""
+    reading = VitalReading(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186, "diastolic": 104},
+        unit="mmHg",
+        measured_at=_lying_time(),
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 02:42 UTC (RED)."
+
+
+def test_unchecked_reading_with_an_overridden_astimezone_still_shows_true_utc() -> None:
+    reading = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186.0, "diastolic": 104.0},
+        unit="mmHg",
+        measured_at=_lying_time(),
+        source="manual",
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 02:42 UTC (RED)."

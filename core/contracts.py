@@ -53,6 +53,16 @@ class InvalidReadingError(ValueError):
     """A reading the rules cannot judge. Raised instead of returning a triage."""
 
 
+def to_utc(moment: datetime) -> datetime:
+    """Convert to UTC using the base class's own method.
+
+    A datetime subclass can override `astimezone()` and return the time unconverted, which would
+    then be labelled UTC to a caregiver (rule 6). Calling `datetime.astimezone` directly ignores
+    any such override.
+    """
+    return datetime.astimezone(moment, UTC)
+
+
 def _time_problem(moment: object) -> str | None:
     """Why `moment` cannot be used as a reading time, or None if it can.
 
@@ -65,9 +75,9 @@ def _time_problem(moment: object) -> str | None:
     if not isinstance(moment, datetime):
         return unknown
     try:
-        if moment.utcoffset() is None:
+        if datetime.utcoffset(moment) is None:
             return unknown
-        moment.astimezone(UTC)
+        to_utc(moment)
     except OverflowError:
         return "measured_at is outside the supported date range"
     except Exception:  # a custom tzinfo can fail; a time we cannot read is not a known time

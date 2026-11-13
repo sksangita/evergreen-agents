@@ -1,9 +1,9 @@
 """Health Sentinel: rules decide the triage, the LLM only explains it."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from agents.health_sentinel.templates import ELDER_FALLBACK
-from core.contracts import AgentResult, Triage, VitalReading
+from core.contracts import AgentResult, Triage, VitalReading, to_utc
 from core.llm import LLMClient
 from core.llm.prompts import explain_triage_prompt
 from core.rules.engine import RuleSet, triage_reading
@@ -54,4 +54,4 @@ def _caregiver_message(reading: VitalReading, triage: Triage) -> str | None:
 
 def _utc_text(moment: datetime) -> str:
     """Date, time and zone, always in UTC so the zone is never blank or ambiguous (rule 6)."""
-    return f"{moment.astimezone(UTC):%Y-%m-%d %H:%M} UTC"
+    return f"{to_utc(moment):%Y-%m-%d %H:%M} UTC"

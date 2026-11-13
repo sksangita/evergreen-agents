@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone, tzinfo
 import pytest
 from pydantic import ValidationError
 
-from core.contracts import AgentResult, Triage, VitalKind, VitalReading, reading_problems
+from core.contracts import AgentResult, Triage, VitalKind, VitalReading, reading_problems, to_utc
 
 
 def _reading(values: dict[str, float], unit: str = "mmHg") -> VitalReading:
@@ -188,3 +188,29 @@ def test_normal_reading_is_still_accepted() -> None:
 def test_unexpected_measurement_is_rejected() -> None:
     with pytest.raises(ValidationError, match="unexpected measurements"):
         _reading({"systolic": 120, "diastolic": 80, "untrusted_note": 1})
+
+
+class LyingDatetime(datetime):
+    """A datetime subclass whose astimezone() ignores the target zone and returns itself."""
+
+    def astimezone(self, tz: tzinfo | None = None) -> "LyingDatetime":  # type: ignore[override]
+        return self
+
+
+_PLUS_0530 = timezone(timedelta(hours=5, minutes=30))
+
+
+def test_to_utc_converts_another_zone() -> None:
+    converted = to_utc(datetime(2026, 11, 6, 8, 12, tzinfo=_PLUS_0530))
+    assert (converted.year, converted.month, converted.day) == (2026, 11, 6)
+    assert (converted.hour, converted.minute) == (2, 42)
+    assert converted.utcoffset() == timedelta(0)
+
+
+def test_to_utc_ignores_a_subclass_that_overrides_astimezone() -> None:
+    """Qodo finding on PR #21: an override returning self must not skip the conversion."""
+    lying = LyingDatetime(2026, 11, 6, 8, 12, tzinfo=_PLUS_0530)
+    assert lying.astimezone(UTC) is lying  # the override really does lie
+    converted = to_utc(lying)
+    assert (converted.hour, converted.minute) == (2, 42)
+    assert converted.utcoffset() == timedelta(0)
