@@ -73,6 +73,73 @@ These rules are not yet true of the existing code. Each has a ticket. Reviewers 
 - Rule 1, enforced timeouts: the LLM client stops waiting after the timeout but does not stop a stalled provider call, which can keep the process from exiting. Tracked in #15.
 - Rule 6, times: `measured_at` accepts naive datetimes and caregiver messages show the clock time only. Tracked in #13.
 
+## Quality gate for review loops
+
+Applies to every agent task in this repo that is checked with Qodo: Qodo Reviewer on uncommitted
+changes (`qodo review`) or Qodo Review Resolver on a PR. `.github/agent/implement.md` and `fix.md`
+tell the agent to follow this file, so this is where the factory reads the gate.
+
+### Severity and type
+
+- **Severity:** High = `action_required`, Medium = `remediation_recommended`,
+  Low = `informational`. Checked on PR #1: Qodo's comment showed 1 High, 6 Medium and 2 Low, and
+  `qodo read pr-review-session findings` returned 1, 6 and 2 of those action levels. If a tool
+  returns a High/Medium/Low label, use it. If severity is missing, treat the finding as Medium and
+  say so.
+- **Type:** Bug, Rule violation or Requirement gap. The CLI JSON has no type field; on a PR it
+  appears as a tag in Qodo's comment. The gate treats every type alike. Record the type when known.
+  `category` (Correctness, Reliability, Security...) is a quality label, not a type or severity.
+
+### The gate
+
+1. **Fix every valid High and Medium finding**, of any type, including Medium Bugs.
+2. **Do not change code for Low findings.** Report every Low finding for human attention: title,
+   location, and whether it looks valid.
+3. **Investigate before acting.** Reproduce or trace each High and Medium finding against the code
+   and the task requirements. Fix a valid one with a test that fails without the fix.
+4. **A High or Medium finding you think is wrong is not yours to close.** Report it as a
+   disagreement with evidence (`file:line`, command output). The task is NOT DONE until the human
+   decides.
+5. **Run `make lint` and `make test` after the fixes.** Both must pass.
+6. **Rerun the review on the updated code** and repeat until no valid High or Medium finding is
+   open. At most 3 review rounds. Automated PR runs keep the 2 fix rounds below, and if a High or
+   Medium finding is still open after the last one, add `agent-blocked`.
+7. **The final review must be complete and cover the final code.** Local: status completed,
+   coverage complete, and submitted after the last edit. PR: `review_session.commit_sha` equals the
+   PR head (`gh pr view <pr> --json headRefOid`). A failed, partial, pending or older review is not
+   clean.
+8. **Report NOT DONE** if any of these holds: a High or Medium finding is open or contested; checks
+   fail; the review failed or is incomplete; or the loop stalls (the same finding comes back
+   unchanged after a fix attempt, or a round fixes nothing). Do not buy extra review passes to
+   chase zero.
+9. **Paths in rule 4 still need human review** (`core/rules/`, `thresholds.yaml`, `core/baseline/`,
+   `core/guardrail/`, `core/escalation/`), however the gate comes out.
+10. **The gate does not authorize** committing, pushing, merging, or recording a finding as
+    implemented or dismissed in Qodo. Those need an explicit instruction.
+
+### Running Qodo locally
+
+```bash
+qodo review --repo owner/repo --base "$(git merge-base HEAD origin/main)" \
+  --context-file ctx.json --async --json   # then: qodo review status <operation-id> --json
+```
+
+Put the task requirements and the decisions made so far in `ctx.json` (`notes`, `decisions`,
+`recent_work`). Pass `--repo` when `origin` uses an SSH host alias such as `git@github-name:...`.
+Without it the CLI sends the alias as the host and the review fails with "could not obtain
+repository credentials".
+
+### Final report (every task)
+
+- **Status:** DONE or NOT DONE. DONE only if every rule of the gate holds.
+- **Scope reviewed:** files, staged and unstaged, and the base.
+- **Findings:** one line each: id, severity, type if known, title, `file:line`, and the decision
+  (fixed, disagreement, or Low flagged), with the evidence.
+- **Checks:** the commands and their results.
+- **Latest review:** operation id or PR commit, status, and what it covers.
+- **Low findings flagged for you:** all of them, or "none".
+- **Blockers and what I need from you**, or "none".
+
 ## Automated runs
 
 A ticket labelled `ready-for-agent` starts `.github/workflows/agent.yml`, which runs Codex on that one ticket. When Qodo reviews the resulting PR, `.github/workflows/agent-fix.yml` runs Codex on its findings.
