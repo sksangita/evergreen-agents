@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 
 import pytest
 
@@ -35,7 +35,7 @@ def test_red_reading_gives_full_result_with_llm_explanation() -> None:
     assert result.rule_version == "thresholds@v1"
     assert result.reasons
     assert result.message_for_elder == "Please sit and rest."
-    assert result.message_for_caregiver == "BP 186/104 at 08:12 (RED)."
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-02 08:12 UTC (RED)."
 
 
 @pytest.mark.parametrize(
@@ -52,7 +52,7 @@ def test_red_reading_still_gives_full_result_when_llm_fails(provider: FakeProvid
     assert result.triage == Triage.RED
     assert result.requires_escalation
     assert result.message_for_elder == ELDER_FALLBACK[Triage.RED]
-    assert result.message_for_caregiver == "BP 186/104 at 08:12 (RED)."
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-02 08:12 UTC (RED)."
 
 
 def test_llm_text_cannot_change_triage() -> None:
@@ -67,7 +67,7 @@ def test_amber_does_not_escalate_now() -> None:
     result = _agent(FakeProvider()).assess(_bp(150, 85), "tr_1")
     assert result.triage == Triage.AMBER
     assert not result.requires_escalation
-    assert result.message_for_caregiver == "BP 150/85 at 08:12 (AMBER)."
+    assert result.message_for_caregiver == "BP 150/85 at 2026-11-02 08:12 UTC (AMBER)."
 
 
 def test_green_has_no_caregiver_message() -> None:
@@ -118,3 +118,100 @@ def test_agent_refuses_an_unchecked_bad_reading() -> None:
     )
     with pytest.raises(InvalidReadingError):
         _agent(FakeProvider()).assess(bad, "tr_1")
+
+
+def test_caregiver_message_converts_another_zone_to_utc() -> None:
+    """08:12 at +05:30 is 02:42 UTC the same day; the message must say so, with the zone."""
+    reading = VitalReading(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186, "diastolic": 104},
+        unit="mmHg",
+        measured_at=datetime(2026, 11, 6, 8, 12, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 02:42 UTC (RED)."
+
+
+def test_caregiver_message_date_changes_when_the_zone_crosses_midnight() -> None:
+    reading = VitalReading(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186, "diastolic": 104},
+        unit="mmHg",
+        measured_at=datetime(2026, 11, 7, 1, 30, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 20:00 UTC (RED)."
+
+
+def test_agent_refuses_a_reading_with_a_naive_time() -> None:
+    naive = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186.0, "diastolic": 104.0},
+        unit="mmHg",
+        measured_at=datetime(2026, 11, 6, 8, 12),
+        source="manual",
+    )
+    with pytest.raises(InvalidReadingError, match="timezone"):
+        _agent(FakeProvider()).assess(naive, "tr_1")
+
+
+@pytest.mark.parametrize(
+    "moment",
+    [
+        datetime(9999, 12, 31, 23, 59, tzinfo=timezone(timedelta(hours=-1))),
+        datetime(1, 1, 1, 0, 0, tzinfo=timezone(timedelta(hours=1))),
+    ],
+    ids=["max_date_west_of_utc", "min_date_east_of_utc"],
+)
+def test_agent_refuses_an_unchecked_reading_whose_time_cannot_be_shown(moment: datetime) -> None:
+    """It must be InvalidReadingError, never an OverflowError that loses a red alert."""
+    unshowable = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186.0, "diastolic": 104.0},
+        unit="mmHg",
+        measured_at=moment,
+        source="manual",
+    )
+    with pytest.raises(InvalidReadingError, match="supported date range"):
+        _agent(FakeProvider()).assess(unshowable, "tr_1")
+
+
+class _LyingDatetime(datetime):
+    """A datetime subclass whose astimezone() ignores the target zone and returns itself."""
+
+    def astimezone(self, tz: tzinfo | None = None) -> "_LyingDatetime":  # type: ignore[override]
+        return self
+
+
+def _lying_time() -> datetime:
+    return _LyingDatetime(2026, 11, 6, 8, 12, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+
+
+def test_caregiver_message_is_true_utc_even_if_astimezone_is_overridden() -> None:
+    """Qodo finding on PR #21: 08:12 at +05:30 is 02:42 UTC, never '08:12 UTC'."""
+    reading = VitalReading(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186, "diastolic": 104},
+        unit="mmHg",
+        measured_at=_lying_time(),
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 02:42 UTC (RED)."
+
+
+def test_unchecked_reading_with_an_overridden_astimezone_still_shows_true_utc() -> None:
+    reading = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186.0, "diastolic": 104.0},
+        unit="mmHg",
+        measured_at=_lying_time(),
+        source="manual",
+    )
+    result = _agent(FakeProvider()).assess(reading, "tr_1")
+    assert result.message_for_caregiver == "BP 186/104 at 2026-11-06 02:42 UTC (RED)."

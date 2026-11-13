@@ -1,7 +1,7 @@
 """Shared schemas. Agents exchange these types, never free-form strings."""
 
 import math
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Self
 
@@ -53,6 +53,38 @@ class InvalidReadingError(ValueError):
     """A reading the rules cannot judge. Raised instead of returning a triage."""
 
 
+def to_utc(moment: datetime) -> datetime:
+    """Convert to UTC using the base class's own method.
+
+    A datetime subclass can override `astimezone()` and return the time unconverted, which would
+    then be labelled UTC to a caregiver (rule 6). Calling `datetime.astimezone` directly ignores
+    any such override.
+    """
+    return datetime.astimezone(moment, UTC)
+
+
+def _time_problem(moment: object) -> str | None:
+    """Why `moment` cannot be used as a reading time, or None if it can.
+
+    It must be a datetime that knows its offset (naive means no tzinfo, or a tzinfo that
+    returns no offset, Python's own definition) and must convert to UTC, because alerts show
+    UTC (rule 6). A date near year 1 or 9999 can be aware yet overflow on that conversion.
+    Never raises, even for a broken tzinfo.
+    """
+    unknown = "measured_at must be a datetime with a timezone"
+    if not isinstance(moment, datetime):
+        return unknown
+    try:
+        if datetime.utcoffset(moment) is None:
+            return unknown
+        to_utc(moment)
+    except OverflowError:
+        return "measured_at is outside the supported date range"
+    except Exception:  # a custom tzinfo can fail; a time we cannot read is not a known time
+        return unknown
+    return None
+
+
 def reading_problems(reading: VitalReading) -> list[str]:
     """Why a reading cannot be judged, or an empty list if it can.
 
@@ -69,6 +101,9 @@ def reading_problems(reading: VitalReading) -> list[str]:
         return [f"{kind} reading has no measurements"]
 
     problems: list[str] = []
+    time_problem = _time_problem(getattr(reading, "measured_at", None))
+    if time_problem:
+        problems.append(time_problem)
     required_unit = REQUIRED_UNIT[kind]
     unit = getattr(reading, "unit", None)
     if unit != required_unit:
