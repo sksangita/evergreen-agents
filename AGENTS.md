@@ -61,7 +61,7 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 ## Known gaps (please do not flag these)
 
-- Only the fake LLM provider exists. The Anthropic provider comes later.
+- The fake provider is the default. An opt-in OpenAI provider exists, demo-only until the guardrail (#6) is built. The Anthropic provider comes later.
 - The amber rule is a single reading at or above 140/90. The spec's "3 readings in 7 days" needs history and comes later.
 - Thresholds are demo values and the cited sources are not yet verified.
 - The Safety guardrail, escalation service, API and web app are not built yet.
@@ -70,7 +70,7 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 
 These rules are not yet true of the existing code. Each has a ticket. Reviewers and agents should still flag any NEW code that breaks the rule, and any change that makes the gap worse.
 
-- Rule 1, enforced timeouts: the LLM client stops waiting after the timeout but does not stop a stalled provider call, which can keep the process from exiting. Tracked in #15.
+- None at the moment. When a rule is not yet true of existing code, list it here with its ticket.
 
 ## Quality gate for review loops
 
