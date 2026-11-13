@@ -71,7 +71,6 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 These rules are not yet true of the existing code. Each has a ticket. Reviewers and agents should still flag any NEW code that breaks the rule, and any change that makes the gap worse.
 
 - Rule 1, enforced timeouts: the LLM client stops waiting after the timeout but does not stop a stalled provider call, which can keep the process from exiting. Tracked in #15.
-- Rule 6, times: `measured_at` accepts naive datetimes and caregiver messages show the clock time only. Tracked in #13.
 
 ## Quality gate for review loops
 

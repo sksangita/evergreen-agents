@@ -142,6 +142,23 @@ def test_unchecked_bad_reading_is_refused_at_triage_not_green(
         triage_reading(reading, load_rules())
 
 
+@pytest.mark.parametrize(
+    "moment",
+    [datetime(2026, 11, 6, 8, 12), None, "2026-11-06T08:12:00Z"],
+    ids=["naive", "none", "text"],
+)
+def test_unchecked_reading_without_a_known_time_is_refused_at_triage(moment: object) -> None:
+    reading = VitalReading.model_construct(
+        elder_id="e_001",
+        kind=VitalKind.BLOOD_PRESSURE,
+        values={"systolic": 186.0, "diastolic": 104.0},
+        unit="mmHg",
+        measured_at=moment,
+    )
+    with pytest.raises(InvalidReadingError, match="measured_at"):
+        triage_reading(reading, load_rules())
+
+
 def test_unchecked_but_valid_reading_is_still_triaged() -> None:
     reading = _unchecked(values={"systolic": 186.0, "diastolic": 104.0})
     decision = triage_reading(reading, load_rules())
