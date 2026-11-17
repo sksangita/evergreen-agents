@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ModelWrapValidatorHandler,
+    ValidationError,
+    model_validator,
+)
 
 
 class Triage(StrEnum):
@@ -17,17 +23,20 @@ class Triage(StrEnum):
 
 class VitalKind(StrEnum):
     BLOOD_PRESSURE = "blood_pressure"
+    HEART_RATE = "heart_rate"
 
 
 # Value names each kind must carry, referenced by name in thresholds.yaml rules.
 REQUIRED_VALUES: dict[VitalKind, frozenset[str]] = {
     VitalKind.BLOOD_PRESSURE: frozenset({"systolic", "diastolic"}),
+    VitalKind.HEART_RATE: frozenset({"bpm"}),
 }
 
 
 # The only unit each kind's thresholds are written in. Other units are rejected, not converted.
 REQUIRED_UNIT: dict[VitalKind, str] = {
     VitalKind.BLOOD_PRESSURE: "mmHg",
+    VitalKind.HEART_RATE: "bpm",
 }
 
 
@@ -41,16 +50,28 @@ class VitalReading(BaseModel):
     measured_at: datetime
     source: str = "manual"
 
+    @model_validator(mode="wrap")
+    @classmethod
+    def _validate_reading(cls, data: object, handler: ModelWrapValidatorHandler[Self]) -> Self:
+        try:
+            return handler(data)
+        except ValidationError as error:
+            problems = "; ".join(e["msg"].removeprefix("Value error, ") for e in error.errors())
+            raise InvalidReadingError(problems) from error
+
     @model_validator(mode="after")
     def _can_be_judged(self) -> Self:
         problems = reading_problems(self)
         if problems:
-            raise ValueError("; ".join(problems))
+            raise InvalidReadingError("; ".join(problems))
         return self
 
 
-class InvalidReadingError(ValueError):
-    """A reading the rules cannot judge. Raised instead of returning a triage."""
+class InvalidReadingError(Exception):
+    """A reading the rules cannot judge. Raised instead of returning a triage.
+
+    Kept outside ValueError so Pydantic propagates this domain error unchanged.
+    """
 
 
 def to_utc(moment: datetime) -> datetime:

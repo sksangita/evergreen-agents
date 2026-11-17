@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from agents.health_sentinel.templates import ELDER_FALLBACK
-from core.contracts import AgentResult, Triage, VitalReading, to_utc
+from core.contracts import AgentResult, Triage, VitalKind, VitalReading, to_utc
 from core.llm import LLMClient
 from core.llm.prompts import explain_triage_prompt
 from core.rules.engine import RuleSet, triage_reading
@@ -44,12 +44,11 @@ def _caregiver_message(reading: VitalReading, triage: Triage) -> str | None:
     """Built from the reading, not the LLM, so it is always accurate."""
     if triage == Triage.GREEN:
         return None
-    systolic = reading.values["systolic"]
-    diastolic = reading.values["diastolic"]
-    return (
-        f"BP {systolic:g}/{diastolic:g} at {_utc_text(reading.measured_at)} "
-        f"({triage.value.upper()})."
-    )
+    if reading.kind == VitalKind.HEART_RATE:
+        measurement = f"Heart rate {reading.values['bpm']:g} bpm"
+    else:
+        measurement = f"BP {reading.values['systolic']:g}/{reading.values['diastolic']:g}"
+    return f"{measurement} at {_utc_text(reading.measured_at)} ({triage.value.upper()})."
 
 
 def _utc_text(moment: datetime) -> str:

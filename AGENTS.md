@@ -14,7 +14,7 @@ It is a hackathon prototype and **not a medical device**. All data is synthetic.
 make install   # uv sync
 make lint      # ruff + mypy (strict)
 make test      # pytest, runs offline against the fake LLM
-uv run python -m agents.health_sentinel 186 104   # demo: expect RED, escalate yes
+uv run python -m agents.health_sentinel bp 186 104   # demo: expect RED, escalate yes
 ```
 
 A change is done when `make lint` and `make test` both pass. Tests must never need network access or an API key.
