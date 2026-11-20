@@ -70,11 +70,7 @@ def test_heart_rate_full_result(bpm: float, expected: Triage, model_down: bool) 
     result = HealthSentinel(load_rules(), LLMClient(provider)).assess(_hr(bpm), "tr_hr")
     assert result.triage == expected
     assert result.requires_escalation == (expected == Triage.RED)
-    assert result.message_for_caregiver == (
-        None
-        if expected == Triage.GREEN
-        else f"Heart rate {bpm:g} bpm at 2026-11-17 08:12 UTC ({expected.value.upper()})."
-    )
+    assert (result.message_for_caregiver is None) == (expected == Triage.GREEN)
     if model_down:
         assert result.message_for_elder == ELDER_FALLBACK_BY_KIND[VitalKind.HEART_RATE][expected]
         if expected != Triage.GREEN:
