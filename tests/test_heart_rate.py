@@ -7,6 +7,7 @@ import yaml
 from pydantic import ValidationError
 
 from agents.health_sentinel import HealthSentinel
+from agents.health_sentinel.agent import _MEASUREMENT_TEXT
 from agents.health_sentinel.templates import ELDER_FALLBACK_BY_KIND
 from core.contracts import InvalidReadingError, Triage, VitalKind, VitalReading
 from core.llm import FakeProvider, LLMClient
@@ -86,6 +87,11 @@ def test_heart_rate_full_result(bpm: float, expected: Triage, model_down: bool) 
 def test_every_vital_kind_has_an_elder_fallback_for_every_level() -> None:
     for kind in VitalKind:
         assert set(ELDER_FALLBACK_BY_KIND[kind]) == {Triage.GREEN, Triage.AMBER, Triage.RED}
+
+
+def test_every_vital_kind_has_a_caregiver_message_format() -> None:
+    # Rule 5: a new vital brings its own caregiver wording, so it cannot crash or reuse another's.
+    assert set(_MEASUREMENT_TEXT) == set(VitalKind)
 
 
 def test_heart_rate_requires_aware_time() -> None:

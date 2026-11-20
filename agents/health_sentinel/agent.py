@@ -1,5 +1,6 @@
 """Health Sentinel: rules decide the triage, the LLM only explains it."""
 
+from collections.abc import Callable
 from datetime import datetime
 
 from agents.health_sentinel.templates import ELDER_FALLBACK_BY_KIND
@@ -40,14 +41,18 @@ class HealthSentinel:
         )
 
 
+# One entry per VitalKind (a test enforces it), so no vital reuses another vital's format.
+_MEASUREMENT_TEXT: dict[VitalKind, Callable[[VitalReading], str]] = {
+    VitalKind.BLOOD_PRESSURE: lambda r: f"BP {r.values['systolic']:g}/{r.values['diastolic']:g}",
+    VitalKind.HEART_RATE: lambda r: f"Heart rate {r.values['bpm']:g} bpm",
+}
+
+
 def _caregiver_message(reading: VitalReading, triage: Triage) -> str | None:
     """Built from the reading, not the LLM, so it is always accurate."""
     if triage == Triage.GREEN:
         return None
-    if reading.kind == VitalKind.HEART_RATE:
-        measurement = f"Heart rate {reading.values['bpm']:g} bpm"
-    else:
-        measurement = f"BP {reading.values['systolic']:g}/{reading.values['diastolic']:g}"
+    measurement = _MEASUREMENT_TEXT[reading.kind](reading)
     return f"{measurement} at {_utc_text(reading.measured_at)} ({triage.value.upper()})."
 
 
