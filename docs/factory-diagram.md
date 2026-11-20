@@ -88,7 +88,7 @@ Colours: green = a tool or agent does the work, yellow = a gate, blue = a human,
 | DEV AGENT, `agent.yml` | `ready-for-agent` label starts Codex on one ticket. Read-only token makes a patch, a second job pushes `agent/ticket-<n>` and opens the PR. Refuses an empty patch or a `.github/` change. | GitHub Actions |
 | FIX AGENT, `agent-fix.yml` | Qodo's comment starts Codex on the findings. Max 2 rounds, then `agent-blocked`. | GitHub Actions |
 | `ci.yml` | `make install`, `make lint`, `make test` on every PR and on `main`. | GitHub Actions |
-| `AGENTS.md` | The 6 safety rules, the High/Medium/Low gate, and the final report format. | Repo root |
+| `AGENTS.md` | The 7 rules, the High/Medium/Low gate, and the final report format. | Repo root |
 | `.github/agent/implement.md`, `fix.md` | The prompts the two agents run. | Repo |
 
 ## The gates

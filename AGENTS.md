@@ -59,6 +59,11 @@ A change is done when `make lint` and `make test` both pass. Tests must never ne
 - **Applies to:** `VitalReading.measured_at` and any text shown to an elder or caregiver that says when something happened. `measured_at` must be timezone-aware, and a naive datetime is rejected when the reading is created. A displayed time includes the date and zone, for example `2026-11-06 08:12 UTC`. New code that compares or counts time, such as the escalation service's 15-minute acknowledgement window and the daily digest, uses timezone-aware values. A change to `VitalReading` or to code that displays a time includes a test that a naive datetime is rejected and an aware one is accepted.
 - **Why:** "08:12" does not say which day or which clock. A caregiver judging how urgent an alert is, and the escalation timers, both depend on knowing exactly when a reading was taken. Qodo's review of PR #1 flagged a caregiver message that showed a UTC clock time that looked like local time.
 
+### 7. Existing tests are not weakened to make a change pass
+
+- **Applies to:** every file in `tests/` and `evals/`. An existing assertion, expected value or test case is not removed, loosened or rewritten unless the change itself requires it, and the PR description says which assertion changed and why. Fix the code, not the test.
+- **Why:** a loosened assertion lets a wrong value pass, for example a test that stopped checking the time in a caregiver message. Coding agents tend to rewrite a failing test instead of fixing the code, and a reviewer reading only the new code will not notice.
+
 ## Known gaps (please do not flag these)
 
 - The fake provider is the default. An opt-in OpenAI provider exists, demo-only until the guardrail (#6) is built. The Anthropic provider comes later.
