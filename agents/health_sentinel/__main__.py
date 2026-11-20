@@ -5,8 +5,10 @@ import sys
 import uuid
 from datetime import UTC, datetime
 
+from pydantic import ValidationError
+
 from agents.health_sentinel.agent import HealthSentinel
-from core.contracts import InvalidReadingError, VitalKind, VitalReading
+from core.contracts import VitalKind, VitalReading
 from core.llm import get_client
 from core.rules.engine import load_rules
 
@@ -33,14 +35,16 @@ def main(argv: list[str] | None = None) -> int:
             kind=VitalKind.BLOOD_PRESSURE if args.vital == "bp" else VitalKind.HEART_RATE,
             values=(
                 {"systolic": args.systolic, "diastolic": args.diastolic}
-                if args.vital == "bp" else {"bpm": args.bpm}
+                if args.vital == "bp"
+                else {"bpm": args.bpm}
             ),
             unit="mmHg" if args.vital == "bp" else "bpm",
             measured_at=datetime.now(UTC),
             source="cli",
         )
-    except InvalidReadingError as error:
-        print(f"Invalid reading, no triage given: {error}", file=sys.stderr)
+    except ValidationError as error:
+        problems = "; ".join(e["msg"].removeprefix("Value error, ") for e in error.errors())
+        print(f"Invalid reading, no triage given: {problems}", file=sys.stderr)
         return 2
     trace_id = f"tr_{uuid.uuid4().hex[:8]}"
     result = HealthSentinel(load_rules(), get_client()).assess(reading, trace_id)

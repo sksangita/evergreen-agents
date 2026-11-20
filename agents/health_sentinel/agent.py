@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from agents.health_sentinel.templates import ELDER_FALLBACK
+from agents.health_sentinel.templates import ELDER_FALLBACK_BY_KIND
 from core.contracts import AgentResult, Triage, VitalKind, VitalReading, to_utc
 from core.llm import LLMClient
 from core.llm.prompts import explain_triage_prompt
@@ -23,7 +23,7 @@ class HealthSentinel:
         # 2. The LLM only words the explanation. On any failure the template is used.
         response = self._llm.complete(
             explain_triage_prompt(decision.triage.value, decision.reasons),
-            fallback=ELDER_FALLBACK[decision.triage],
+            fallback=ELDER_FALLBACK_BY_KIND[reading.kind][decision.triage],
             trace_id=trace_id,
         )
 

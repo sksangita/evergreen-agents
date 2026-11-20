@@ -5,13 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Self
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    ModelWrapValidatorHandler,
-    ValidationError,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class Triage(StrEnum):
@@ -50,28 +44,16 @@ class VitalReading(BaseModel):
     measured_at: datetime
     source: str = "manual"
 
-    @model_validator(mode="wrap")
-    @classmethod
-    def _validate_reading(cls, data: object, handler: ModelWrapValidatorHandler[Self]) -> Self:
-        try:
-            return handler(data)
-        except ValidationError as error:
-            problems = "; ".join(e["msg"].removeprefix("Value error, ") for e in error.errors())
-            raise InvalidReadingError(problems) from error
-
     @model_validator(mode="after")
     def _can_be_judged(self) -> Self:
         problems = reading_problems(self)
         if problems:
-            raise InvalidReadingError("; ".join(problems))
+            raise ValueError("; ".join(problems))
         return self
 
 
-class InvalidReadingError(Exception):
-    """A reading the rules cannot judge. Raised instead of returning a triage.
-
-    Kept outside ValueError so Pydantic propagates this domain error unchanged.
-    """
+class InvalidReadingError(ValueError):
+    """A reading the rules cannot judge. Raised instead of returning a triage."""
 
 
 def to_utc(moment: datetime) -> datetime:

@@ -3,15 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone, tzinfo
 import pytest
 from pydantic import ValidationError
 
-from core.contracts import (
-    AgentResult,
-    InvalidReadingError,
-    Triage,
-    VitalKind,
-    VitalReading,
-    reading_problems,
-    to_utc,
-)
+from core.contracts import AgentResult, Triage, VitalKind, VitalReading, reading_problems, to_utc
 
 
 def _reading(values: dict[str, float], unit: str = "mmHg") -> VitalReading:
@@ -43,12 +35,12 @@ def _at(moment: object) -> VitalReading:
 
 
 def test_naive_measured_at_is_rejected() -> None:
-    with pytest.raises(InvalidReadingError, match="timezone"):
+    with pytest.raises(ValidationError, match="timezone"):
         _at(datetime(2026, 11, 6, 8, 12))
 
 
 def test_naive_measured_at_given_as_text_is_rejected() -> None:
-    with pytest.raises(InvalidReadingError, match="timezone"):
+    with pytest.raises(ValidationError, match="timezone"):
         _at("2026-11-06T08:12:00")
 
 
@@ -110,7 +102,7 @@ _EXTREME_IDS = ["max_date_west_of_utc", "min_date_east_of_utc"]
 
 @pytest.mark.parametrize("moment", _EXTREME_TIMES, ids=_EXTREME_IDS)
 def test_a_time_that_cannot_be_shown_in_utc_is_rejected_at_creation(moment: datetime) -> None:
-    with pytest.raises(InvalidReadingError, match="supported date range"):
+    with pytest.raises(ValidationError, match="supported date range"):
         _at(moment)
 
 
@@ -151,7 +143,7 @@ def test_measured_at_left_unset_is_reported_never_raised() -> None:
 
 
 def test_blood_pressure_missing_diastolic_is_rejected() -> None:
-    with pytest.raises(InvalidReadingError):
+    with pytest.raises(ValidationError):
         _reading({"systolic": 186})
 
 
@@ -177,7 +169,7 @@ def test_blood_pressure_in_mmhg_is_accepted() -> None:
 @pytest.mark.parametrize("unit", ["kPa", "mmhg", "", "mm Hg"])
 def test_blood_pressure_in_another_unit_is_rejected(unit: str) -> None:
     # 24/16 kPa is about 180/120 mmHg. It must raise, never reach triage as green.
-    with pytest.raises(InvalidReadingError, match="must be in mmHg"):
+    with pytest.raises(ValidationError, match="must be in mmHg"):
         _reading({"systolic": 24, "diastolic": 16}, unit=unit)
 
 
@@ -185,7 +177,7 @@ def test_blood_pressure_in_another_unit_is_rejected(unit: str) -> None:
 @pytest.mark.parametrize("field", ["systolic", "diastolic"])
 def test_non_finite_zero_or_negative_value_is_rejected(field: str, bad: float) -> None:
     values = {"systolic": 120.0, "diastolic": 80.0, field: bad}
-    with pytest.raises(InvalidReadingError, match="must be a positive number"):
+    with pytest.raises(ValidationError, match="must be a positive number"):
         _reading(values)
 
 
@@ -194,7 +186,7 @@ def test_normal_reading_is_still_accepted() -> None:
 
 
 def test_unexpected_measurement_is_rejected() -> None:
-    with pytest.raises(InvalidReadingError, match="unexpected measurements"):
+    with pytest.raises(ValidationError, match="unexpected measurements"):
         _reading({"systolic": 120, "diastolic": 80, "untrusted_note": 1})
 
 
