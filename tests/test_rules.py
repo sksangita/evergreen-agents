@@ -25,7 +25,7 @@ def _bp(systolic: float, diastolic: float) -> VitalReading:
 def test_blood_pressure_triage(case: dict[str, Any]) -> None:
     decision = triage_reading(_bp(case["systolic"], case["diastolic"]), load_rules())
     assert decision.triage == Triage(case["expected"])
-    assert decision.rule_version == "thresholds@v1"
+    assert decision.rule_version == "thresholds@v2"
 
 
 def test_red_reason_names_the_rule_and_values() -> None:

@@ -1,7 +1,7 @@
 # Demo starting values only. Verify each against the cited guideline before relying on it.
 # Every rule needs id, version, source. Rules may only name values the vital carries
-# (blood_pressure: systolic, diastolic).
-version: 1
+# (blood_pressure: systolic, diastolic; heart_rate: bpm).
+version: 2
 rules:
   - id: bp.crisis
     version: 1
@@ -17,3 +17,15 @@ rules:
     when: "systolic >= 140 or diastolic >= 90"
     triage: amber
     source: "AHA - Understanding Blood Pressure Readings (high blood pressure stage 2)"
+  - id: hr.low_or_high
+    version: 1
+    vital: heart_rate
+    when: "bpm < 40 or bpm > 130"
+    triage: red
+    source: "Spec section 6 - General clinical reference ranges (demo, unverified)"
+  - id: hr.high
+    version: 1
+    vital: heart_rate
+    when: "bpm > 100"
+    triage: amber
+    source: "Spec section 6 - General clinical reference ranges (demo, unverified)"

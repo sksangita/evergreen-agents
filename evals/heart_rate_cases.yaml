@@ -1,0 +1,9 @@
+# Synthetic resting heart rates, including both sides of every threshold.
+- {name: upper_green_edge, bpm: 100, expected: green}
+- {name: just_above_amber, bpm: 100.01, expected: amber}
+- {name: upper_amber_edge, bpm: 130, expected: amber}
+- {name: just_above_red, bpm: 130.01, expected: red}
+- {name: lower_green_edge, bpm: 40, expected: green}
+- {name: just_below_red, bpm: 39.99, expected: red}
+- {name: below_amber, bpm: 99.99, expected: green}
+- {name: above_low_edge, bpm: 40.01, expected: green}
