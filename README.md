@@ -24,7 +24,7 @@ fixed template.
 
 ```bash
 LLM_PROVIDER=openai OPENAI_API_KEY=... LLM_MODEL_SMALL=gpt-5-mini \
-  uv run python -m agents.health_sentinel 186 104
+  uv run python -m agents.health_sentinel bp 186 104
 ```
 
 The token limit (`max_completion_tokens`) is 4000 because reasoning models such as `gpt-5-mini`
@@ -32,3 +32,9 @@ spend part of it on hidden thinking. If a model still returns no text, the templ
 
 The `openai` provider is **demo-only until the Safety guardrail (#6) exists**: without it, model
 text reaches the elder unchecked. The prompt contains the reading values, so use synthetic data only.
+
+Check a synthetic resting heart rate (bpm):
+
+```bash
+uv run python -m agents.health_sentinel hr 128
+```

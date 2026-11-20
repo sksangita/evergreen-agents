@@ -17,17 +17,20 @@ class Triage(StrEnum):
 
 class VitalKind(StrEnum):
     BLOOD_PRESSURE = "blood_pressure"
+    HEART_RATE = "heart_rate"
 
 
 # Value names each kind must carry, referenced by name in thresholds.yaml rules.
 REQUIRED_VALUES: dict[VitalKind, frozenset[str]] = {
     VitalKind.BLOOD_PRESSURE: frozenset({"systolic", "diastolic"}),
+    VitalKind.HEART_RATE: frozenset({"bpm"}),
 }
 
 
 # The only unit each kind's thresholds are written in. Other units are rejected, not converted.
 REQUIRED_UNIT: dict[VitalKind, str] = {
     VitalKind.BLOOD_PRESSURE: "mmHg",
+    VitalKind.HEART_RATE: "bpm",
 }
 
 

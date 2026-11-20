@@ -32,7 +32,7 @@ def test_red_reading_gives_full_result_with_llm_explanation() -> None:
     assert result.trace_id == "tr_1"
     assert result.triage == Triage.RED
     assert result.requires_escalation
-    assert result.rule_version == "thresholds@v1"
+    assert result.rule_version == "thresholds@v2"
     assert result.reasons
     assert result.message_for_elder == "Please sit and rest."
     assert result.message_for_caregiver == "BP 186/104 at 2026-11-02 08:12 UTC (RED)."
