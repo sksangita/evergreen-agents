@@ -1,35 +1,11 @@
-# Qodo review instructions for evergreen-agents (Day 11).
-# The rules are in AGENTS.md; this file tells Qodo's reviewer how to use them. Keep each value
-# under 2,000 characters (the Qodo portal limit). Not a medical device; all data is synthetic.
+# Qodo review settings for evergreen-agents (Day 11).
+# The project rules live in AGENTS.md; Qodo imports them as platform rules, so no separate
+# instruction text is kept here. These keys only make runs comparable and show what was loaded.
 
 [review_agent]
-# Read REVIEW.md at the repo root (the portal has no toggle for it in this workspace).
-enable_review_md = true
 # Pin the review depth so two runs on the same PR are comparable.
 override_effort = "standard"
-issues_user_guidelines = """
-Project: elder safety triage (blood pressure, heart rate). Rules, not the LLM, decide triage.
-Flag as High or Medium: code outside core/rules that sets triage or requires_escalation; model
-text shown to an elder or caregiver without the template fallback; any path where a reading
-that cannot be judged (wrong unit, NaN, zero, negative, unexpected key) could end up green;
-health values, names or phone numbers in a log call or an LLM prompt; a time shown to a
-person without a date and a timezone; tests that need network access or an API key.
-Flag as Medium: a PR that rewrites or loosens an existing test assertion when the change did
-not need it, and a new VitalKind without rules, an allowed unit, edge-case tests and a
-caregiver message format. Say so plainly when a change edits core/rules/, thresholds.yaml,
-core/baseline/, core/guardrail/ or core/escalation/: those need human review before merge.
-Known gaps listed in AGENTS.md under "Known gaps" are not findings. Put High and Medium
-findings first, and keep Low findings short.
-"""
-compliance_user_guidelines = """
-Check the change against the six rules in AGENTS.md: (1) rules decide triage, the LLM only
-explains it, with a timeout, a template fallback and a test; (2) bad input is rejected, never
-green; (3) no personal data in logs or prompts; (4) safety changes carry tests, sources and
-human review; (5) a new vital arrives with its rules, units and tests; (6) times carry a date
-and a timezone. Begin the compliance section with one line, "Rules checked: 1-6", then list
-only the rules the change touches.
-"""
 
 [review_agent_ux]
-# Adds a "Context sources" section to the review, showing which files and instructions Qodo loaded.
+# Adds a "Context sources" section to reviews that have findings.
 show_context_used = true
