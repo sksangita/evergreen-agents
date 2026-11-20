@@ -110,25 +110,29 @@ final code. Severity map: High = `action_required`, Medium = `remediation_recomm
 
 ## What the Day 10 run showed (ticket #22, heart rate, PR #23)
 
+Result: **reached `main`** (merge commit `f9e031a`), every gate held on the final head `d97a1aa`.
+
 | Step | What happened | Worked? |
 |---|---|---|
 | Gate 1 | Wisdom found 5 issues; the ticket was revised before labelling | Yes |
-| Dev agent (`agent.yml`) | The label started it; Codex opened PR #23 | Yes, but it added an unrequested change (a new error type, 8 test assertions rewritten) |
+| Dev agent (`agent.yml`) | The label started it; Codex opened PR #23 | Yes, but it added an unrequested change (a new error type, 8 test assertions rewritten). It was reverted. |
 | Local review (Lane A) | Not run. Lane B has no local review step. | Gap |
-| Gate 3 CI | Passed on the head | Yes, after a person approved the run (GitHub holds CI on bot-opened PRs) |
-| Qodo PR review | Did not start on its own. `/review` was commented; the first try hit "trial ended". After that it returned 1 High and 2 Low. | Partly |
-| Fix agent (`agent-fix.yml`) | Failed at once: `Actor 'qodo-code-review[bot]' ... Detected permission: 'none'`. No fix attempted. | **No** |
-| Review Resolver skill | Read the findings; fix not done yet | Manual only |
-| Gate 5 | Not reached: a High finding is open | Stopped at Gate 4 |
+| Gate 3 CI | Passed on the head | Yes, after a person approved the first run (GitHub holds CI on bot-opened PRs). The later push ran without approval. |
+| Qodo PR review | Did not start on its own. `/review` was commented; the first try hit "trial ended". After that: 1 High and 2 Low. | Partly |
+| Fix agent (`agent-fix.yml`) | Failed on both Qodo comments: `Actor 'qodo-code-review[bot]' ... Detected permission: 'none'`. No fix attempted. | **No** |
+| Review Resolver skill | Run by a person with the agent: reproduced the High, fixed it with a failing-first test, pushed | Yes, manual |
+| Gate 4 re-review | Complete on `d97a1aa`: High implemented, no Medium, one Low still open, one outdated | Yes |
+| Gate 5 | CI and review on the same head, Low acknowledged, thresholds accepted by a person, PR text rewritten | Held; merged by a person |
 
 ### Where a person stepped in
-Revised the ticket, added the label, posted `/review`, approved CI, and still has to decide on the unrequested
-change, the heart-rate thresholds (rule 4) and the merge.
+Revised the ticket, added the label, posted `/review`, approved the first CI run, had the unrequested change
+reverted, accepted the heart-rate thresholds (rule 4), acknowledged the Low finding and merged.
 
 ### Gaps and improvements
 1. **Fix agent cannot start.** The Codex action rejects the Qodo bot as an actor. The workflow must allow that bot (a `.github/` change a person makes).
-2. **`/review` is manual** on bot-opened PRs.
+2. **`/review` is manual on bot-opened PRs.** Qodo reviewed the owner's PRs #19 and #21 within about 80 seconds, and needed `/review` on the automation's PRs #12 and #23. Probably Qodo skipping bot-authored PRs (inferred from the comment history, not documented).
 3. **Review Resolver is not in the workflows.** `fix.md` reads Qodo's comment and ignores severity, so the High/Medium/Low gate is applied only by the local agent.
 4. **Lane B skips Gate 1 and the local review.** Gate 1 ran only because a person did it before labelling.
 5. **Dev agent scope:** Codex changed more than the ticket asked. A reviewer checks the diff against the acceptance criteria.
 6. **CI needs approval** on PRs opened by automation.
+7. **PR text goes stale:** the agent's report said NOT DONE after the fixes. Gate 5 includes "PR text matches what shipped" for this reason.
