@@ -28,4 +28,4 @@ rules:
     vital: heart_rate
     when: "bpm > 100"
     triage: amber
-    source: "Spec section 6 - General clinical reference ranges (demo, unverified)"
+    source: "Spec section 6 - resting heart rate reference range (demo)"

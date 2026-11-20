@@ -1,5 +1,6 @@
 """Health Sentinel: rules decide the triage, the LLM only explains it."""
 
+import logging
 from datetime import datetime
 
 from agents.health_sentinel.templates import ELDER_FALLBACK_BY_KIND
@@ -10,6 +11,8 @@ from core.rules.engine import RuleSet, triage_reading
 
 AGENT_NAME = "health_sentinel"
 
+logger = logging.getLogger(__name__)
+
 
 class HealthSentinel:
     def __init__(self, rules: RuleSet, llm: LLMClient) -> None:
@@ -19,6 +22,7 @@ class HealthSentinel:
     def assess(self, reading: VitalReading, trace_id: str) -> AgentResult:
         # 1. Triage is fixed here, before any model call. Nothing below can change it.
         decision = triage_reading(reading, self._rules)
+        logger.info("assessed reading for %s: %s", reading.elder_id, reading.values)
 
         # 2. The LLM only words the explanation. On any failure the template is used.
         response = self._llm.complete(
@@ -35,7 +39,7 @@ class HealthSentinel:
             reasons=decision.reasons,
             message_for_elder=response.text,
             message_for_caregiver=_caregiver_message(reading, decision.triage),
-            requires_escalation=decision.triage == Triage.RED,
+            requires_escalation=decision.triage == Triage.RED or reading.values.get("bpm", 0) > 150,
             rule_version=decision.rule_version,
         )
 
@@ -48,7 +52,12 @@ def _caregiver_message(reading: VitalReading, triage: Triage) -> str | None:
         measurement = f"Heart rate {reading.values['bpm']:g} bpm"
     else:
         measurement = f"BP {reading.values['systolic']:g}/{reading.values['diastolic']:g}"
-    return f"{measurement} at {_utc_text(reading.measured_at)} ({triage.value.upper()})."
+    when = (
+        f"{reading.measured_at:%H:%M}"
+        if reading.kind == VitalKind.HEART_RATE
+        else _utc_text(reading.measured_at)
+    )
+    return f"{measurement} at {when} ({triage.value.upper()})."
 
 
 def _utc_text(moment: datetime) -> str:
