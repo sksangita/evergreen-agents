@@ -3,6 +3,10 @@
 # under 2,000 characters (the Qodo portal limit). Not a medical device; all data is synthetic.
 
 [review_agent]
+# Read REVIEW.md at the repo root (the portal has no toggle for it in this workspace).
+enable_review_md = true
+# Pin the review depth so two runs on the same PR are comparable.
+override_effort = "standard"
 issues_user_guidelines = """
 Project: elder safety triage (blood pressure, heart rate). Rules, not the LLM, decide triage.
 Flag as High or Medium: code outside core/rules that sets triage or requires_escalation; model
@@ -25,3 +29,7 @@ human review; (5) a new vital arrives with its rules, units and tests; (6) times
 and a timezone. Begin the compliance section with one line, "Rules checked: 1-6", then list
 only the rules the change touches.
 """
+
+[review_agent_ux]
+# Adds a "Context sources" section to the review, showing which files and instructions Qodo loaded.
+show_context_used = true
