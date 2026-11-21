@@ -13,6 +13,14 @@ from core.llm import get_client
 from core.rules.engine import load_rules
 
 
+def _is_number(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m agents.health_sentinel",
@@ -27,7 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     bp.add_argument("diastolic", type=float)
     hr = subparsers.add_parser("hr", help="resting heart rate in bpm")
     hr.add_argument("bpm", type=float)
-    args = parser.parse_args(argv)
+    raw = sys.argv[1:] if argv is None else argv
+    if len(raw) == 2 and all(_is_number(a) for a in raw):
+        # Backward compatibility: `186 104` used to mean blood pressure.
+        raw = ["bp", *raw]
+    args = parser.parse_args(raw)
 
     try:
         reading = VitalReading(
