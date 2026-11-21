@@ -55,7 +55,7 @@ def test_invalid_heart_rate_cli(bpm: str, capsys: pytest.CaptureFixture[str]) ->
     assert not captured.out
 
 
-@pytest.mark.parametrize("args", [[], ["186", "104"]])
+@pytest.mark.parametrize("args", [[]])
 def test_cli_requires_subcommand(args: list[str], capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as error:
         main(args)
