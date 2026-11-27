@@ -25,7 +25,15 @@ Work from the repository root. Needs `uv`. Runs offline, no API key.
 
 1. Read `core/rules/thresholds.yaml`. Note the file `version` and each rule for the vital (`id`, `version`,
    `when`, `source`). If a rule lacks `id`, `version` or `source`, report it. That is a failure.
-2. Run the script and keep the full output:
+2. Confirm the expected file against the live source. Read the ticket named in its header (read-only):
+   ```bash
+   gh issue view 22 --repo sksangita/evergreen-agents --json body -q .body
+   ```
+   For each value the file quotes from the ticket (thresholds, escalation, "100 is green", "just above 130 is
+   red"), find the same wording in the body. Report any quote that is missing or different. If `gh` is not
+   allowed or the ticket cannot be read, say "expected file not compared with the live ticket" in the report
+   and in the evidence file, and continue. Do not treat the run as fully verified.
+3. Run the script and keep the full output:
    ```bash
    uv run python .claude/skills/check-threshold-edges/scripts/run_edges.py heart_rate \
      .claude/skills/check-threshold-edges/references/heart-rate-ticket-22.yaml
@@ -33,11 +41,11 @@ Work from the repository root. Needs `uv`. Runs offline, no API key.
    It runs `uv run python -m agents.health_sentinel hr <bpm>` for every case and compares triage level,
    escalation and exit code with the file. It also checks that each threshold has a case exactly at it, just
    above and just below.
-3. Read the output line by line. Every line must say `OK`. The last line must be `PASS: 0 problem(s)` and the
+4. Read the output line by line. Every line must say `OK`. The last line must be `PASS: 0 problem(s)` and the
    exit code 0. A line that says `FAIL`, a missing line, or exit 1 or 3 means the check failed.
-4. Compare with the repo's own tests: open `evals/heart_rate_cases.yaml` and list any threshold edge in the
+5. Compare with the repo's own tests: open `evals/heart_rate_cases.yaml` and list any threshold edge in the
    expected file that has no matching case there. Report these; do not edit the eval file unless asked.
-5. Save the evidence (see below), then give the final report.
+6. Save the evidence (see below), then give the final report.
 
 ## Expected result
 
@@ -47,7 +55,7 @@ All cases `OK`, all thresholds covered on both sides, `PASS: 0 problem(s)`. For 
 ## Evidence to save
 
 Write one file at the output path with: the date and git commit (`git rev-parse --short HEAD`), the thresholds
-file `version`, the exact command, the **full script output**, and the list from step 4. Do not summarize in
+file `version`, the result of step 2 (matched, or the differences, or "not compared"), the exact command, the **full script output**, and the list from step 4. Do not summarize in
 place of the output.
 
 ## Stop and ask instead of continuing when
@@ -60,5 +68,5 @@ place of the output.
 
 ## Final report
 
-Status PASS or FAIL, the command, the number of cases and thresholds checked, every mismatch, the evidence file
+Status PASS or FAIL, the command, the result of the ticket comparison, the number of cases and thresholds checked, every mismatch, the evidence file
 path, and anything you could not check.
