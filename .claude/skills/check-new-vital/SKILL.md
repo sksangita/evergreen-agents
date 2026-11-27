@@ -27,7 +27,8 @@ Work from the repository root. Needs `uv` and `git`. Offline, no API key. Read-o
    uv run python .claude/skills/check-new-vital/scripts/check_vital.py heart_rate hr main
    ```
    Replace the three arguments with your inputs. The script prints one line per item: `OK`, `FAIL`, `HUMAN`
-   (needs a person), or `UNCHECKED`, and ends with a `PASS` or `FAIL` summary and an exit code.
+   (needs a person), or `UNCHECKED`, and ends with a verdict and an exit code: `PASS` (0), `FAIL` (1, or 3 for an
+   unknown vital) or `INCOMPLETE` (4, an item could not be checked by the script).
 2. For every `FAIL`, open the named file and write down what is missing, with `file:line`. Do not fix it unless
    the task says to build the vital. If the task is an audit, only report.
 3. Compare the thresholds with the source from input 4: open `core/rules/thresholds.yaml`, and for each rule of
@@ -35,13 +36,15 @@ Work from the repository root. Needs `uv` and `git`. Offline, no API key. Read-o
    Report any difference as a finding. Do not edit the thresholds.
 4. Check three things the script cannot: (a) the elder text in `agents/health_sentinel/templates.py` names this
    vital and not another; (b) `agent.py` `_MEASUREMENT_TEXT` shows the value with its unit; (c) a test in
-   `tests/` covers rejection of bad input (zero, negative, NaN, infinity, wrong unit) for this vital.
+   `tests/` covers rejection of bad input (zero, negative, NaN, infinity, wrong unit) for this vital; (d) in
+   `agents/health_sentinel/__main__.py` the subcommand builds a `VitalKind` of this vital (the script only
+   checks that its output names this vital's values). For every `UNCHECKED` line, do that check by hand.
 5. Save the evidence (below), then give the final report.
 
 ## Expected result
 
-For a complete vital: every item `OK` except `HUMAN` lines for sources marked unverified, and the last line
-`PASS: 0 failing item(s)`. For a vital that is half added, one `FAIL` line per missing piece.
+For a complete vital: every item `OK` except `HUMAN` lines for sources marked unverified, the last line
+`PASS: 0 failing item(s)` and exit code 0. For a vital that is half added, one `FAIL` line per missing piece.
 
 ## Evidence to save
 
@@ -57,5 +60,11 @@ command, the **full script output**, and your notes from steps 2 to 4. Do not re
 
 ## Final report
 
-Status PASS or FAIL, the command, each `FAIL` with `file:line`, each `HUMAN` line, what step 3 found, what you
+**Status is not the script's verdict alone.** Report PASS only if the script said `PASS` **and** steps 3 and 4
+found no problem. Report FAIL if the script said `FAIL`, or if step 3 (a threshold differs from the source) or
+step 4 (a missing text, missing rejection test or wrong subcommand mapping) found a problem, even when the
+script printed `PASS`. Report INCOMPLETE if the script said `INCOMPLETE` and you could not check the `UNCHECKED`
+lines by hand, or if step 3 had no source to compare. Say which step decided the status.
+
+Then give the command, each `FAIL` with `file:line`, each `HUMAN` line, what step 3 found, what you
 could not check, and the evidence file path.
