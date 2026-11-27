@@ -1,0 +1,353 @@
+{
+ "pr_url": "https://github.com/sksangita/evergreen-agents/pull/35",
+ "git_provider": null,
+ "finding_count": 6,
+ "review_session": {
+  "run_id": 2083529,
+  "status": "completed",
+  "commit_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+  "started_at": "2026-11-21T02:06:29.001308Z",
+  "git_provider": "github",
+  "review_complete": true
+ },
+ "findings": [
+  {
+   "attribution_status": "pending",
+   "title": "Health readings written to logs",
+   "description": "`HealthSentinel.assess` passes `reading.values` and `reading.elder_id` to `logger.info`, recording identifiable heart-rate or blood-pressure measurements rather than just a correlation identifier. Every successful assessment emits this record when INFO logging is enabled, making the data available in configured log sinks and causing the existing log-safety test to fail for a blood-pressure reading.",
+   "id": "3c0fbfee-5749-4af2-993a-ed038d086d84",
+   "action_level": "action_required",
+   "category": "Security",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4544425?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4544425",
+      "id": 4544425,
+      "citation": "Do not log health values or personal contact information"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[25-25]",
+      "citation": "        logger.info(\"assessed reading for %s: %s\", reading.elder_id, reading.values)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "core/contracts.py[24-35]",
+      "citation": "REQUIRED_VALUES: dict[VitalKind, frozenset[str]] = {\n    VitalKind.BLOOD_PRESSURE: frozenset({\"systolic\", \"diastolic\"}),\n    VitalKind.HEART_RATE: frozenset({\"bpm\"}),\n}\n\n\n# The only unit each kind's thresholds are written in. Other units are rejected, not converted.\nREQUIRED_UNIT: dict[VitalKind, str] = {\n    VitalKind.BLOOD_PRESSURE: \"mmHg\",\n    VitalKind.HEART_RATE: \"bpm\",\n}\n\u2026 (1 more lines)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[22-25]",
+      "citation": "    def assess(self, reading: VitalReading, trace_id: str) -> AgentResult:\n        # 1. Triage is fixed here, before any model call. Nothing below can change it.\n        decision = triage_reading(reading, self._rules)\n        logger.info(\"assessed reading for %s: %s\", reading.elder_id, reading.values)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_health_sentinel.py[100-107]",
+      "citation": "\n\ndef test_no_health_values_in_logs(caplog: pytest.LogCaptureFixture) -> None:\n    with caplog.at_level(logging.DEBUG):\n        _agent(FakeProvider()).assess(_bp(186, 104), \"tr_1\")\n    assert \"186\" not in caplog.text\n    assert \"104\" not in caplog.text\n    assert \"e_001\" not in caplog.text"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[42-45]",
+      "citation": "### 3. No personal data in logs or prompts\n\n- **Applies to:** every `logging` call, `core/llm/prompts.py` and the audit log. Log ids and `trace_id` only, never health values, names or phone numbers. Prompts contain only the triage level and the reasons built from known measurement names.\n- **Why:** health data is sensitive and logs travel. Free-text keys or values copied into a prompt can also compete with the safety instructions."
+     }
+    ],
+    "explanation": "The log call passes the raw `reading.values` measurement dictionary and `reading.elder_id` to the logger. The existing log-safety test rejects both the measurements and the elder identifier in captured logs, demonstrating the exposure when INFO logging captures an assessment."
+   },
+   "location": {
+    "file_path": "agents/health_sentinel/agent.py",
+    "start_line": 25,
+    "end_line": 25,
+    "side": "right",
+    "code_snippet": "+        logger.info(\"assessed reading for %s: %s\", reading.elder_id, reading.values)"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "Caregiver time shows clock only",
+   "description": "`_caregiver_message` formats heart-rate `reading.measured_at` as `%H:%M` instead of using `_utc_text`, dropping the date and timezone. Every amber or red heart-rate message therefore shows only a recurring clock time, and readings measured outside UTC show the source zone\u2019s time without identifying that zone.",
+   "id": "80480718-ebb3-4a5a-8915-acd3f6165582",
+   "action_level": "action_required",
+   "category": "Correctness",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4595109?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4595109",
+      "id": 4595109,
+      "citation": "Include the date and timezone in displayed event times"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[56-58]",
+      "citation": "        f\"{reading.measured_at:%H:%M}\"\n        if reading.kind == VitalKind.HEART_RATE\n        else _utc_text(reading.measured_at)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[47-65]",
+      "citation": "def _caregiver_message(reading: VitalReading, triage: Triage) -> str | None:\n    \"\"\"Built from the reading, not the LLM, so it is always accurate.\"\"\"\n    if triage == Triage.GREEN:\n        return None\n    if reading.kind == VitalKind.HEART_RATE:\n        measurement = f\"Heart rate {reading.values['bpm']:g} bpm\"\n    else:\n        measurement = f\"BP {reading.values['systolic']:g}/{reading.values['diastolic']:g}\"\n    when = (\n        f\"{reading.measured_at:%H:%M}\"\n        if reading.kind == VitalKind.HEART_RATE\n        else _utc_text(reading.measured_at)\n    )\n    return f\"{measurement} at {when} ({triage.value.upper()}).\"\n\n\ndef _utc_text(moment: datetime) -> str:\n    \"\"\"Date, time and zone, always in UTC so the zone is never blank or ambiguous (rule 6).\"\"\"\n    return f\"{to_utc(moment):%Y-%m-%d %H:%M} UTC\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[53-60]",
+      "citation": "    print(f\"Escalate:   {'yes' if result.requires_escalation else 'no'}\")\n    print(f\"Reasons:    {'; '.join(result.reasons)}\")\n    print(f\"To elder:   {result.message_for_elder}\")\n    print(f\"To carer:   {result.message_for_caregiver or '-'}\")\n    print(f\"Rules:      {result.rule_version}   Trace: {result.trace_id}\")\n    return 0\n\n\u2026 (1 more lines)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_health_sentinel.py[123-145]",
+      "citation": "def test_caregiver_message_converts_another_zone_to_utc() -> None:\n    \"\"\"08:12 at +05:30 is 02:42 UTC the same day; the message must say so, with the zone.\"\"\"\n    reading = VitalReading(\n        elder_id=\"e_001\",\n        kind=VitalKind.BLOOD_PRESSURE,\n        values={\"systolic\": 186, \"diastolic\": 104},\n        unit=\"mmHg\",\n        measured_at=datetime(2026, 11, 6, 8, 12, tzinfo=timezone(timedelta(hours=5, minutes=30))),\n    )\n    result = _agent(FakeProvider()).assess(reading, \"tr_1\")\n    assert result.message_for_caregiver == \"BP 186/104 at 2026-11-06 02:42 UTC (RED).\"\n\n\ndef test_caregiver_message_date_changes_when_the_zone_crosses_midnight() -> None:\n    reading = VitalReading(\n        elder_id=\"e_001\",\n        kind=VitalKind.BLOOD_PRESSURE,\n        values={\"systolic\": 186, \"diastolic\": 104},\n        unit=\"mmHg\",\n        measured_at=datetime(2026, 11, 7, 1, 30, tzinfo=timezone(timedelta(hours=5, minutes=30))),\n    )\n    result = _agent(FakeProvider()).assess(reading, \"tr_1\")\n    assert result.message_for_caregiver == \"BP 186/104 at 2026-11-06 20:00 UTC (RED).\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[58-60]",
+      "citation": "\n- **Applies to:** `VitalReading.measured_at` and any text shown to an elder or caregiver that says when something happened. `measured_at` must be timezone-aware, and a naive datetime is rejected when the reading is created. A displayed time includes the date and zone, for example `2026-11-06 08:12 UTC`. New code that compares or counts time, such as the escalation service's 15-minute acknowledgement window and the daily digest, uses timezone-aware values. A change to `VitalReading` or to code that displays a time includes a test that a naive datetime is rejected and an aware one is accepted.\n- **Why:** \"08:12\" does not say which day or which clock. A caregiver judging how urgent an alert is, and the escalation timers, both depend on knowing exactly when a reading was taken. Qodo's review of PR #1 flagged a caregiver message that showed a UTC clock time that looked like local time."
+     }
+    ],
+    "explanation": "The heart-rate conditional selects a clock-only format and bypasses the existing UTC formatter. The CLI prints the resulting caregiver message unchanged, so neither the date nor the zone is restored before display."
+   },
+   "location": {
+    "file_path": "agents/health_sentinel/agent.py",
+    "start_line": 56,
+    "end_line": 58,
+    "side": "right",
+    "code_snippet": "+        f\"{reading.measured_at:%H:%M}\"\n+        if reading.kind == VitalKind.HEART_RATE\n+        else _utc_text(reading.measured_at)"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "Escalation decided outside rules engine",
+   "description": "`HealthSentinel.assess` sets `requires_escalation` using an inline `bpm > 150` cutoff instead of relying solely on `decision.requires_escalation`, and that cutoff is absent from `thresholds.yaml` and any rule version. With a supplied rule set that does not classify a valid reading above 150 bpm as red, the result can report green or amber triage while the CLI says to escalate; the shipped rules mask this because they classify values above 130 as red.",
+   "id": "c7a027a3-d227-4824-a997-ba6975df507b",
+   "action_level": "action_required",
+   "category": "Correctness",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4544376?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4544376",
+      "id": 4544376,
+      "citation": "Only the rules or baseline modules may decide triage and escalation"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[42-42]",
+      "citation": "            requires_escalation=decision.triage == Triage.RED or reading.values.get(\"bpm\", 0) > 150,"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[17-24]",
+      "citation": "class HealthSentinel:\n    def __init__(self, rules: RuleSet, llm: LLMClient) -> None:\n        self._rules = rules\n        self._llm = llm\n\n    def assess(self, reading: VitalReading, trace_id: str) -> AgentResult:\n        # 1. Triage is fixed here, before any model call. Nothing below can change it.\n        decision = triage_reading(reading, self._rules)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[34-43]",
+      "citation": "        return AgentResult(\n            agent=AGENT_NAME,\n            elder_id=reading.elder_id,\n            trace_id=trace_id,\n            triage=decision.triage,\n            reasons=decision.reasons,\n            message_for_elder=response.text,\n            message_for_caregiver=_caregiver_message(reading, decision.triage),\n            requires_escalation=decision.triage == Triage.RED or reading.values.get(\"bpm\", 0) > 150,\n            rule_version=decision.rule_version,"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "core/rules/engine.py[103-137]",
+      "citation": "            return values[name]\n        case ast.Constant(value=constant):\n            return constant\n    raise ValueError(f\"cannot evaluate {type(node).__name__}\")  # unreachable after parsing\n\n\n@dataclass(frozen=True)\nclass RuleSet:\n    version: int\n    rules: tuple[tuple[Rule, ast.expr], ...]  # each rule with its parsed condition\n\n    @property\n    def label(self) -> str:\n        return f\"thresholds@v{self.version}\"\n\n\ndef load_rules(path: Path = DEFAULT_THRESHOLDS) -> RuleSet:\n    document = yaml.safe_load(path.read_text())\n    compiled: list[tuple[Rule, ast.expr]] = []\n    for raw in document[\"rules\"]:\n        try:\n            rule = Rule.model_validate(raw)\n            condition = _parse_condition(rule.when, REQUIRED_VALUES[rule.vital])\n        except (ValidationError, ValueError, SyntaxError) as error:\n            raise ValueError(f\"invalid rule {raw.get('id', '?')!r}: {error}\") from error\n        compiled.append((rule, condition))\n    return RuleSet(version=int(document[\"version\"]), rules=tuple(compiled))\n\n\ndef triage_reading(reading: VitalReading, rules: RuleSet) -> TriageDecision:\n    \"\"\"Return the most severe level among matching rules, or green if none match.\n\n    Raises InvalidReadingError for a reading the rules cannot judge, so \"no rule matched\"\n    never means green for bad data, however the reading was built.\n    \"\"\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "core/rules/thresholds.yaml[20-25]",
+      "citation": "  - id: hr.low_or_high\n    version: 1\n    vital: heart_rate\n    when: \"bpm < 40 or bpm > 130\"\n    triage: red\n    source: \"Spec section 6 - General clinical reference ranges (demo, unverified)\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[52-54]",
+      "citation": "    print(f\"Triage:     {result.triage.value.upper()}\")\n    print(f\"Escalate:   {'yes' if result.requires_escalation else 'no'}\")\n    print(f\"Reasons:    {'; '.join(result.reasons)}\")"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[30-33]",
+      "citation": "## Rules\n\n### 1. Rules decide triage, the LLM only explains it (the \"No Model Verdicts\" rule)\n\u2026 (1 more lines)"
+     }
+    ],
+    "explanation": "The escalation expression in `HealthSentinel.assess` adds its own numeric threshold to the rule decision. Because the agent accepts a supplied `RuleSet` that can return green when no rule matches, a reading above 150 bpm can independently set escalation even when the rules do not classify it as red; the CLI displays both fields, making the disagreement visible."
+   },
+   "location": {
+    "file_path": "agents/health_sentinel/agent.py",
+    "start_line": 42,
+    "end_line": 42,
+    "side": "right",
+    "code_snippet": "+            requires_escalation=decision.triage == Triage.RED or reading.values.get(\"bpm\", 0) > 150,"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "An unverified threshold loses its caveat",
+   "description": "The `hr.high` source text drops its explicit `unverified` qualification even though the threshold's reference has not been verified. Anyone reviewing that rule's provenance now sees a more authoritative-sounding resting-heart-rate reference, while the repository still identifies threshold sources as unverified demo material.",
+   "id": "37ebb42c-4a04-49a9-b504-2d905c494113",
+   "action_level": "remediation_recommended",
+   "category": "Maintainability",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "pr_branch_file",
+      "source": "core/rules/thresholds.yaml[27-31]",
+      "citation": "    version: 1\n    vital: heart_rate\n    when: \"bpm > 100\"\n    triage: amber\n    source: \"Spec section 6 - resting heart rate reference range (demo)\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[46-49]",
+      "citation": "\n### 4. Safety changes carry tests, sources and human review\n\n- **Applies to:** `core/rules/`, `thresholds.yaml`, `core/baseline/`, `core/guardrail/` and `core/escalation/`. Every change adds or updates a case in `evals/` or `tests/`, including the edges (exactly at a threshold, just below it). Every threshold has an `id`, `version` and `source`. These paths need human review before merging."
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[68-72]",
+      "citation": "\n- The fake provider is the default. An opt-in OpenAI provider exists, demo-only until the guardrail (#6) is built. The Anthropic provider comes later.\n- The amber rule is a single reading at or above 140/90. The spec's \"3 readings in 7 days\" needs history and comes later.\n- Thresholds are demo values and the cited sources are not yet verified.\n- The Safety guardrail, escalation service, API and web app are not built yet."
+     }
+    ],
+    "explanation": "The modified source belongs to the amber heart-rate rule, and repository guidance explicitly says the cited threshold sources have not yet been verified."
+   },
+   "location": {
+    "file_path": "core/rules/thresholds.yaml",
+    "start_line": 31,
+    "end_line": 31,
+    "side": "right",
+    "code_snippet": "+    source: \"Spec section 6 - resting heart rate reference range (demo)\""
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "Caregiver text assertion dropped",
+   "description": "`test_heart_rate_full_result` checks only whether `message_for_caregiver` is present instead of asserting the complete caregiver text. A message with the wrong bpm, timestamp or triage label\u2014including one whose timestamp loses its date and zone\u2014can therefore pass, and no other heart-rate test checks the complete text; the PR description gives no reason for weakening the assertion.",
+   "id": "4ade87fd-1f01-4434-a137-c1ede767731b",
+   "action_level": "remediation_recommended",
+   "category": "Testability",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4969698?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4969698",
+      "id": 4969698,
+      "citation": "Preserve existing test checks unless the change requires their modification"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_heart_rate.py[73-73]",
+      "citation": "    assert (result.message_for_caregiver is None) == (expected == Triage.GREEN)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_heart_rate.py[69-76]",
+      "citation": "    provider = FakeProvider(error=RuntimeError(\"down\") if model_down else None)\n    result = HealthSentinel(load_rules(), LLMClient(provider)).assess(_hr(bpm), \"tr_hr\")\n    assert result.triage == expected\n    assert result.requires_escalation == (expected == Triage.RED)\n    assert (result.message_for_caregiver is None) == (expected == Triage.GREEN)\n    if model_down:\n        assert result.message_for_elder == ELDER_FALLBACK_BY_KIND[VitalKind.HEART_RATE][expected]\n        if expected != Triage.GREEN:"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/agent.py[55-60]",
+      "citation": "    when = (\n        f\"{reading.measured_at:%H:%M}\"\n        if reading.kind == VitalKind.HEART_RATE\n        else _utc_text(reading.measured_at)\n    )\n    return f\"{measurement} at {when} ({triage.value.upper()}).\""
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[62-65]",
+      "citation": "### 7. Existing tests are not weakened to make a change pass\n\n- **Applies to:** every file in `tests/` and `evals/`. An existing assertion, expected value or test case is not removed, loosened or rewritten unless the change itself requires it, and the PR description says which assertion changed and why. Fix the code, not the test.\n- **Why:** a loosened assertion lets a wrong value pass, for example a test that stopped checking the time in a caregiver message. Coding agents tend to rewrite a failing test instead of fixing the code, and a reviewer reading only the new code will not notice."
+     }
+    ],
+    "explanation": "The removed assertion compared `message_for_caregiver` with the full expected text, including its UTC timestamp, while the replacement checks only presence. The changed timestamp format illustrates content the replacement cannot detect, and the inputs identify no other heart-rate test that checks the complete caregiver message or PR description entry explaining the change."
+   },
+   "location": {
+    "file_path": "tests/test_heart_rate.py",
+    "start_line": 73,
+    "end_line": 73,
+    "side": "right",
+    "code_snippet": "+    assert (result.message_for_caregiver is None) == (expected == Triage.GREEN)"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "Test needs live network host",
+   "description": "`test_can_reach_example_host` unconditionally opens a TCP connection to `example.com:443` instead of running offline. When the host is unreachable from an offline or network-restricted runner, the test fails and blocks `make test` in pull-request CI for a reason unrelated to application behavior.",
+   "id": "94d561bf-2356-4e5a-b0d1-2e6ba524ba45",
+   "action_level": "remediation_recommended",
+   "category": "Testability",
+   "git_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4544374?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4544374",
+      "id": 4544374,
+      "citation": "Tests must run without network access or API credentials"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_network_probe.py[4-5]",
+      "citation": "def test_can_reach_example_host() -> None:\n    with socket.create_connection((\"example.com\", 443), timeout=5):"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_network_probe.py[1-6]",
+      "citation": "import socket\n\n\ndef test_can_reach_example_host() -> None:\n    with socket.create_connection((\"example.com\", 443), timeout=5):\n        pass"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "pyproject.toml[24-25]",
+      "citation": "[tool.setuptools.packages.find]\ninclude = [\"core*\", \"agents*\"]"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "Makefile[6-8]",
+      "citation": "test:\n\tuv run pytest\n\u2026 (1 more lines)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": ".github/workflows/ci.yml[11-16]",
+      "citation": "    steps:\n      - uses: actions/checkout@v4\n      - uses: astral-sh/setup-uv@v5\n      - run: make install\n      - run: make lint\n      - run: make test"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "AGENTS.md[11-20]",
+      "citation": "## Setup and verification\n\n```bash\nmake install   # uv sync\nmake lint      # ruff + mypy (strict)\nmake test      # pytest, runs offline against the fake LLM\nuv run python -m agents.health_sentinel bp 186 104   # demo: expect RED, escalate yes\n```\n\nA change is done when `make lint` and `make test` both pass. Tests must never need network access or an API key."
+     }
+    ],
+    "explanation": "The test calls `socket.create_connection` against a public host and has no skip condition. Pytest discovers it under `tests`, while the pull-request workflow invokes `make test`, so the connectivity check runs as part of the required suite."
+   },
+   "location": {
+    "file_path": "tests/test_network_probe.py",
+    "start_line": 4,
+    "end_line": 5,
+    "side": "right",
+    "code_snippet": "+def test_can_reach_example_host() -> None:\n+    with socket.create_connection((\"example.com\", 443), timeout=5):"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  }
+ ],
+ "review_runs": [
+  {
+   "run_id": 2083529,
+   "commit_sha": "f5477d819f534ee6ad657f860af78143880e1b35",
+   "started_at": "2026-11-21T02:06:29.001308Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  }
+ ]
+}

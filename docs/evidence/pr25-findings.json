@@ -1,0 +1,48 @@
+{
+ "pr_url": "https://github.com/sksangita/evergreen-agents/pull/25",
+ "git_provider": null,
+ "finding_count": 0,
+ "review_session": {
+  "run_id": 2069947,
+  "status": "completed",
+  "commit_sha": "c8973ade3e452bc15c09650c377962bd0031329c",
+  "started_at": "2026-11-20T08:35:39.265690Z",
+  "git_provider": "github",
+  "review_complete": true
+ },
+ "findings": [],
+ "review_runs": [
+  {
+   "run_id": 2069947,
+   "commit_sha": "c8973ade3e452bc15c09650c377962bd0031329c",
+   "started_at": "2026-11-20T08:35:39.265690Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2069627,
+   "commit_sha": "c8973ade3e452bc15c09650c377962bd0031329c",
+   "started_at": "2026-11-20T08:09:33.125490Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2069332,
+   "commit_sha": "c8973ade3e452bc15c09650c377962bd0031329c",
+   "started_at": "2026-11-20T07:39:11.360051Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2069267,
+   "commit_sha": "c8973ade3e452bc15c09650c377962bd0031329c",
+   "started_at": "2026-11-20T07:33:04.543911Z",
+   "status": "completed",
+   "review_effort": "lite",
+   "review_complete": true
+  }
+ ]
+}
