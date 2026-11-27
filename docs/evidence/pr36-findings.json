@@ -1,0 +1,138 @@
+{
+ "pr_url": "https://github.com/sksangita/evergreen-agents/pull/36",
+ "git_provider": null,
+ "finding_count": 2,
+ "review_session": {
+  "run_id": 2083758,
+  "status": "completed",
+  "commit_sha": "8795217595688bb205a9fc65afd1f1cc6bac0d29",
+  "started_at": "2026-11-21T02:50:09.228967Z",
+  "git_provider": "github",
+  "review_complete": true
+ },
+ "findings": [
+  {
+   "attribution_status": "pending",
+   "title": "CLI silently accepts the retired two-number command form",
+   "description": "`main` rewrites two bare numeric arguments into a `bp` subcommand instead of letting argparse require an explicit subcommand. For `186 104`, the CLI triages a BP reading rather than printing usage and exiting with code 2, and the unchanged `test_cli_requires_subcommand[args1]` fails under `make test`.",
+   "id": "843245b0-b471-402a-86a3-b82d69cdbfa8",
+   "action_level": "action_required",
+   "category": "Correctness",
+   "git_sha": "736c415e62d5fb301c5fa0b645c1e0d53c343221",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "ticket",
+      "source": "https://github.com/sksangita/evergreen-agents/issues/22",
+      "citation": "Provide explicit bp and hr CLI subcommands"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[38-41]",
+      "citation": "    raw = sys.argv[1:] if argv is None else argv\n    if len(raw) == 2 and all(_is_number(a) for a in raw):\n        # Backward compatibility: `186 104` used to mean blood pressure.\n        raw = [\"bp\", *raw]"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[38-43]",
+      "citation": "    raw = sys.argv[1:] if argv is None else argv\n    if len(raw) == 2 and all(_is_number(a) for a in raw):\n        # Backward compatibility: `186 104` used to mean blood pressure.\n        raw = [\"bp\", *raw]\n    args = parser.parse_args(raw)\n\u2026 (1 more lines)"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_cli.py[58-63]",
+      "citation": "@pytest.mark.parametrize(\"args\", [[], [\"186\", \"104\"]])\ndef test_cli_requires_subcommand(args: list[str], capsys: pytest.CaptureFixture[str]) -> None:\n    with pytest.raises(SystemExit) as error:\n        main(args)\n    assert error.value.code == 2\n    assert \"usage:\" in capsys.readouterr().err"
+     }
+    ],
+    "explanation": "The success criteria require `python -m agents.health_sentinel 186 104` to print usage and exit non-zero, and require `make lint` and `make test` to pass. The added rewrite at lines 39\u201341 turns those two numbers into a `bp` invocation; the existing parametrized CLI test expects that input to exit with code 2, and the PR description reports that `make test` fails on `test_cli_requires_subcommand[args1]` without any test edits."
+   },
+   "location": {
+    "file_path": "agents/health_sentinel/__main__.py",
+    "start_line": 39,
+    "end_line": 41,
+    "side": "right",
+    "code_snippet": "+    if len(raw) == 2 and all(_is_number(a) for a in raw):\n+        # Backward compatibility: `186 104` used to mean blood pressure.\n+        raw = [\"bp\", *raw]"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  },
+  {
+   "attribution_status": "pending",
+   "title": "Old-form CLI regression test removed, hiding a failing check",
+   "description": "`test_cli_requires_subcommand` drops `[\"186\", \"104\"]` from its parametrization, removing the only assertion that bare two-number arguments exit nonzero with usage. When those arguments are passed, `main` still prepends `bp` and triages the reading instead of rejecting it, while the PR description incorrectly claims no test was edited and the commit message acknowledges the uncovered gap.",
+   "id": "7ed473fa-314a-4b90-90b2-db535c6b01cd",
+   "action_level": "remediation_recommended",
+   "category": "Testability",
+   "git_sha": "8795217595688bb205a9fc65afd1f1cc6bac0d29",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4969698?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4969698",
+      "id": 4969698,
+      "citation": "Preserve existing test checks unless the change requires their modification"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_cli.py[58-58]",
+      "citation": "@pytest.mark.parametrize(\"args\", [[]])"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_cli.py[58-63]",
+      "citation": "@pytest.mark.parametrize(\"args\", [[]])\ndef test_cli_requires_subcommand(args: list[str], capsys: pytest.CaptureFixture[str]) -> None:\n    with pytest.raises(SystemExit) as error:\n        main(args)\n    assert error.value.code == 2\n    assert \"usage:\" in capsys.readouterr().err"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[37-42]",
+      "citation": "    hr.add_argument(\"bpm\", type=float)\n    raw = sys.argv[1:] if argv is None else argv\n    if len(raw) == 2 and all(_is_number(a) for a in raw):\n        # Backward compatibility: `186 104` used to mean blood pressure.\n        raw = [\"bp\", *raw]\n    args = parser.parse_args(raw)"
+     }
+    ],
+    "explanation": "The diff removes `[\"186\", \"104\"]` from the parametrization, leaving only the empty argument list covered. The CLI still prepends `bp` to two numeric arguments before parsing them, so the removed case would exercise the behavior at issue. The PR description\u2019s claim that no test was edited contradicts the diff, and the commit message describes the resulting gap as uncovered."
+   },
+   "location": {
+    "file_path": "tests/test_cli.py",
+    "start_line": 58,
+    "end_line": 58,
+    "side": "left",
+    "code_snippet": "-@pytest.mark.parametrize(\"args\", [[], [\"186\", \"104\"]])\n+@pytest.mark.parametrize(\"args\", [[]])"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  }
+ ],
+ "review_runs": [
+  {
+   "run_id": 2083758,
+   "commit_sha": "8795217595688bb205a9fc65afd1f1cc6bac0d29",
+   "started_at": "2026-11-21T02:50:09.228967Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2083740,
+   "commit_sha": "8795217595688bb205a9fc65afd1f1cc6bac0d29",
+   "started_at": "2026-11-21T02:46:49.059518Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2083738,
+   "commit_sha": "8795217595688bb205a9fc65afd1f1cc6bac0d29",
+   "started_at": "2026-11-21T02:45:45.747963Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  },
+  {
+   "run_id": 2083662,
+   "commit_sha": "736c415e62d5fb301c5fa0b645c1e0d53c343221",
+   "started_at": "2026-11-21T02:28:55.556864Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  }
+ ]
+}

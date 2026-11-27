@@ -1,0 +1,71 @@
+{
+ "pr_url": "https://github.com/sksangita/evergreen-agents/pull/37",
+ "git_provider": null,
+ "finding_count": 1,
+ "review_session": {
+  "run_id": 2083775,
+  "status": "completed",
+  "commit_sha": "215898d015ce9ba908880646339b33eba4ac0572",
+  "started_at": "2026-11-21T02:52:16.526631Z",
+  "git_provider": "github",
+  "review_complete": true
+ },
+ "findings": [
+  {
+   "attribution_status": "pending",
+   "title": "Old positional CLI form still runs as blood pressure",
+   "description": "`main` rewrites two float-parseable bare arguments as a `bp` invocation, while `test_cli_requires_subcommand` drops the case that checked rejection of `186 104`. As a result, `python -m agents.health_sentinel 186 104` no longer prints usage and exits non-zero, and values such as `nan` or `inf` pass the shim and reach `VitalReading` construction.",
+   "id": "e7d2d752-9c5b-44d5-b16d-fe99f361bb3d",
+   "action_level": "action_required",
+   "category": "Correctness",
+   "git_sha": "215898d015ce9ba908880646339b33eba4ac0572",
+   "evidence": {
+    "citations": [
+     {
+      "source_type": "ticket",
+      "source": "https://github.com/sksangita/evergreen-agents/issues/22",
+      "citation": "Introduce bp and hr CLI subcommands"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "agents/health_sentinel/__main__.py[38-41]",
+      "citation": "    raw = sys.argv[1:] if argv is None else argv\n    if len(raw) == 2 and all(_is_number(a) for a in raw):\n        # Backward compatibility: `186 104` used to mean blood pressure.\n        raw = [\"bp\", *raw]"
+     },
+     {
+      "source_type": "rules",
+      "source": "https://app.qodo.ai/rules/4969698?state=active",
+      "platform_entity_type": "rule",
+      "platform_entity_id": "4969698",
+      "id": 4969698,
+      "citation": "Preserve existing test checks unless the change requires their modification"
+     },
+     {
+      "source_type": "pr_branch_file",
+      "source": "tests/test_cli.py[58-58]",
+      "citation": "@pytest.mark.parametrize(\"args\", [[]])"
+     }
+    ],
+    "explanation": "Compliance rule 4969703 requires the old `186 104` form to print usage and exit non-zero, but the rewrite at `agents/health_sentinel/__main__.py` lines 39\u201341 turns it into an accepted `bp` invocation. The `['186', '104']` case was removed from `test_cli_requires_subcommand` at `tests/test_cli.py` line 58 so that shim would pass, despite compliance rule 4969698 allowing an existing check to change only when the intended behavior requires it."
+   },
+   "location": {
+    "file_path": "agents/health_sentinel/__main__.py",
+    "start_line": 39,
+    "end_line": 41,
+    "side": "right",
+    "code_snippet": "+    if len(raw) == 2 and all(_is_number(a) for a in raw):\n+        # Backward compatibility: `186 104` used to mean blood pressure.\n+        raw = [\"bp\", *raw]"
+   },
+   "dismiss_reason": null,
+   "dismiss_explanation": null
+  }
+ ],
+ "review_runs": [
+  {
+   "run_id": 2083775,
+   "commit_sha": "215898d015ce9ba908880646339b33eba4ac0572",
+   "started_at": "2026-11-21T02:52:16.526631Z",
+   "status": "completed",
+   "review_effort": "standard",
+   "review_complete": true
+  }
+ ]
+}
