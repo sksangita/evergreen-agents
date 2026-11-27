@@ -55,7 +55,7 @@ All cases `OK`, all thresholds covered on both sides, `PASS: 0 problem(s)`. For 
 ## Evidence to save
 
 Write one file at the output path with: the date and git commit (`git rev-parse --short HEAD`), the thresholds
-file `version`, the result of step 2 (matched, or the differences, or "not compared"), the exact command, the **full script output**, and the list from step 4. Do not summarize in
+file `version`, the result of step 2 (matched, or the differences, or "not compared"), the exact command, the **full script output**, and the list from step 5. Do not summarize in
 place of the output.
 
 ## Stop and ask instead of continuing when
@@ -64,7 +64,7 @@ place of the output.
 - the script exits 3, crashes, or the CLI cannot run (for example `uv` is missing);
 - a result differs from the expected file. Report the mismatch with the numbers. Do not edit the expected file or
   `thresholds.yaml` to make it pass. A threshold change needs human review (rule 4);
-- the task would need network access or an API key.
+- the task would need network access (other than the read-only `gh issue view` in step 2) or an API key.
 
 ## Final report
 
