@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from agents.health_sentinel.__main__ import main
@@ -61,3 +63,31 @@ def test_cli_requires_subcommand(args: list[str], capsys: pytest.CaptureFixture[
         main(args)
     assert error.value.code == 2
     assert "usage:" in capsys.readouterr().err
+
+
+def test_json_flag_prints_one_json_object_with_the_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["--json", "bp", "186", "104"]) == 0
+    out = capsys.readouterr().out
+    data = json.loads(out)
+    assert data["triage"] == "red"
+    assert data["requires_escalation"] is True
+    assert data["rule_version"].startswith("thresholds@v")
+    assert "Triage:" not in out
+
+
+def test_json_flag_works_for_heart_rate(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--json", "hr", "80"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["triage"] == "green"
+    assert data["requires_escalation"] is False
+
+
+def test_json_flag_invalid_reading_gives_no_json_and_exit_2(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["--json", "bp", "0", "80"]) == 2
+    captured = capsys.readouterr()
+    assert not captured.out
+    assert "Invalid reading" in captured.err

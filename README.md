@@ -38,3 +38,9 @@ Check a synthetic resting heart rate (bpm):
 ```bash
 uv run python -m agents.health_sentinel hr 128
 ```
+
+Add `--json` before the vital to get one JSON object (triage, escalation, reasons, rule version) for scripts:
+
+```bash
+uv run python -m agents.health_sentinel --json hr 128
+```
