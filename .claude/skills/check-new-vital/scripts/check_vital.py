@@ -120,6 +120,20 @@ def check_cli(vk, cli: str, names: list[str]) -> None:  # noqa: ANN001
         add("OK" if needle in read(path) else "FAIL", f"{path} mentions {needle}", "")
 
 
+def check_version(base: str, document: dict) -> None:
+    """Rules that differ from the base ref need a higher file `version`."""
+    shown = run(["git", "show", f"{base}:{THRESHOLDS}"])
+    if shown.returncode != 0:
+        add("UNCHECKED", f"file version vs {base}", "base ref not readable")
+        return
+    old = yaml.safe_load(shown.stdout)
+    same = old["rules"] == document["rules"]
+    bumped = int(document["version"]) > int(old["version"])
+    detail = f"{old['version']} -> {document['version']}, rules "
+    detail += "unchanged" if same else "changed"
+    add("OK" if same or bumped else "FAIL", f"file version vs {base}", detail)
+
+
 def main() -> int:
     kind, cli = sys.argv[1], sys.argv[2]
     base = sys.argv[3] if len(sys.argv) > 3 else "main"
@@ -144,16 +158,7 @@ def main() -> int:
         add("FAIL" if missing else "OK", f"rule {rid} metadata", f"missing {missing}")
         if "unverified" in str(r.get("source", "")).lower():
             add("HUMAN", f"rule {rid} source", "marked unverified: a person must review (rule 4)")
-    shown = run(["git", "show", f"{base}:{THRESHOLDS}"])
-    if shown.returncode == 0:
-        old = yaml.safe_load(shown.stdout)
-        same = old["rules"] == document["rules"]
-        bumped = int(document["version"]) > int(old["version"])
-        detail = f"{old['version']} -> {document['version']}, rules "
-        detail += "unchanged" if same else "changed"
-        add("OK" if same or bumped else "FAIL", f"file version vs {base}", detail)
-    else:
-        add("UNCHECKED", f"file version vs {base}", "base ref not readable")
+    check_version(base, document)
     header = "\n".join(line for line in read(THRESHOLDS).splitlines() if line.startswith("#"))
     named = kind in header and all(n in header for n in names)
     add("OK" if named else "FAIL", f"{THRESHOLDS} header comment names the value", f"{names}")

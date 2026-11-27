@@ -102,3 +102,36 @@ def test_unreadable_base_ref_is_incomplete_not_pass() -> None:
     result = _run_script("heart_rate", "hr", "no-such-ref")
     assert result.returncode == 4
     assert "INCOMPLETE" in result.stdout
+
+
+def _version_status(
+    mod: ModuleType, monkeypatch: pytest.MonkeyPatch, old: str, new: dict[str, object]
+) -> str:
+    """Run the version guard against a fake base file; return the status it recorded."""
+    fake = subprocess.CompletedProcess(args=[], returncode=0, stdout=old, stderr="")
+    monkeypatch.setattr(mod, "run", lambda cmd: fake)
+    mod.RESULTS.clear()
+    mod.check_version("fake-base", new)
+    assert len(mod.RESULTS) == 1
+    return str(mod.RESULTS[0][0])
+
+
+_OLD = "version: 2\nrules:\n  - {id: a, vital: heart_rate, when: 'bpm > 100'}\n"
+_SAME = [{"id": "a", "vital": "heart_rate", "when": "bpm > 100"}]
+_CHANGED = [{"id": "a", "vital": "heart_rate", "when": "bpm > 101"}]
+
+
+@pytest.mark.parametrize(
+    ("version", "rules", "expected"),
+    [
+        (2, _CHANGED, "FAIL"),  # rule changed, version not raised: the case Qodo asked about
+        (3, _CHANGED, "OK"),  # rule changed, version raised
+        (2, _SAME, "OK"),  # nothing changed
+    ],
+)
+def test_version_guard_against_a_fake_base(
+    monkeypatch: pytest.MonkeyPatch, version: int, rules: list[dict[str, str]], expected: str
+) -> None:
+    mod = _load()
+    status = _version_status(mod, monkeypatch, _OLD, {"version": version, "rules": rules})
+    assert status == expected
