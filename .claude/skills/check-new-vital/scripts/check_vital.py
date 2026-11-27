@@ -32,6 +32,9 @@ def read(path: str) -> str:
 
 
 def coverage(kind: str, rules: list[dict], cases: list[dict], names: list[str]) -> None:
+    if not names:
+        add("UNCHECKED", "edge coverage", f"{kind} has no values defined yet")
+        return
     if len(names) != 1:
         add("UNCHECKED", "edge coverage", f"{kind} has several values; check edges by hand")
         return
@@ -113,12 +116,13 @@ def main() -> int:
     coverage(kind, rules, cases, names)
 
     helped = run(["uv", "run", "python", "-m", "agents.health_sentinel", "--help"])
-    add("OK" if cli in helped.stdout else "FAIL", f"CLI subcommand '{cli}' in --help", "")
+    listed = re.search(rf"[{{,]{re.escape(cli)}[,}}]", helped.stdout) is not None
+    add("OK" if listed else "FAIL", f"CLI subcommand '{cli}' listed in --help", "")
     bare = run(["uv", "run", "python", "-m", "agents.health_sentinel", cli])
     add(
-        "OK" if bare.returncode == 2 else "FAIL",
-        f"'{cli}' with no value exits 2",
-        f"exit {bare.returncode}",
+        "OK" if bare.returncode == 2 and "invalid choice" not in bare.stderr else "FAIL",
+        f"'{cli}' is a real subcommand and exits 2 with no value",
+        f"exit {bare.returncode}" + (", invalid choice" if "invalid choice" in bare.stderr else ""),
     )
     for path, needle in (
         ("tests/test_cli.py", f'"{cli}"'),
