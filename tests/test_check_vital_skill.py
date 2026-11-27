@@ -92,6 +92,13 @@ def test_wrong_subcommand_for_the_vital_fails() -> None:
 
 
 def test_correct_pair_passes_with_no_failures() -> None:
-    result = _run_script("heart_rate", "hr", "main")
+    # HEAD always exists, even in CI where there is no local `main` branch.
+    result = _run_script("heart_rate", "hr", "HEAD")
     assert result.returncode == 0, result.stdout
     assert "FAIL " not in result.stdout.replace("FAIL:", "")
+
+
+def test_unreadable_base_ref_is_incomplete_not_pass() -> None:
+    result = _run_script("heart_rate", "hr", "no-such-ref")
+    assert result.returncode == 4
+    assert "INCOMPLETE" in result.stdout
