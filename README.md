@@ -38,3 +38,19 @@ Check a synthetic resting heart rate (bpm):
 ```bash
 uv run python -m agents.health_sentinel hr 128
 ```
+
+## Adding a vital
+
+AGENTS.md rule 5 says a new vital arrives with its rules, units and tests. Use the Claude Code skill
+`check-new-vital` ([`SKILL.md`](.claude/skills/check-new-vital/SKILL.md)) to audit a vital. Its first step
+runs a script that lists the missing pieces:
+
+```bash
+uv run python .claude/skills/check-new-vital/scripts/check_vital.py heart_rate hr main
+```
+
+The script's `PASS` is not the result on its own. The skill also compares thresholds with their source and
+checks the elder and caregiver wording and the bad-input tests by hand, and reports PASS only if those find no
+problem. Changes to `core/rules/` and `thresholds.yaml` still need human review (rule 4).
+
+How the work flows from ticket to `main`, with every gate: [`docs/factory-diagram.md`](docs/factory-diagram.md).

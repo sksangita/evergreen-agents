@@ -15,7 +15,15 @@ Where to submit: [Start here thread](https://github.com/orgs/qodo-hackathon/disc
 | 3 | Connect the backlog | 6 Nov | Tickets #3, #4; PRs #7, #8 | [my post](https://github.com/qodo-hackathon/software-factory-hackathon/discussions/5#discussioncomment-19431917) |
 | 4 | Pick up work automatically | 6 Nov | Ticket #5; PRs #9 to #12 | [my post](https://github.com/qodo-hackathon/software-factory-hackathon/discussions/6#discussioncomment-19435163) |
 | 5 | Self-improving rules | 7 Nov | PR #14 | [my post](https://github.com/qodo-hackathon/software-factory-hackathon/discussions/7#discussioncomment-19458164) |
-| 6 | Ask your codebase before you build | not started | - | - |
+| 6 | Ask your codebase before you build | 10 Nov | Ticket #16; PR #18 | posted |
+| 7 | Resolve Qodo's PR review findings | 11 Nov | Tickets #15, #16; PR #19 | posted |
+| 8 | Review local changes before commit | 13 Nov | Ticket #13; PR #21 | posted |
+| 9 | Quality gate for review loops | 13 Nov | PR #20 | posted |
+| 10 | Ticket to main, with a factory diagram | 17 to 20 Nov | Ticket #22; PRs #23, #24 | posted |
+| 11 | Make the reviewer yours | 20 to 21 Nov | PRs #26 to #35 | posted |
+| 12 | Give your factory the full picture | 21 to 27 Nov | Ticket #22; PRs #36, #37, #38 | posted |
+| 13 | Teach your factory a new skill | 27 Nov | PR #39 | posted |
+| 14 | Turn your quality gate into a workflow | 27 Nov | PR #40 | posted (INCOMPLETE) |
 
 ---
 
@@ -112,15 +120,112 @@ Where to submit: [Start here thread](https://github.com/orgs/qodo-hackathon/disc
 
 ## Day 6: Ask your codebase before you build
 
-Not started. Challenge thread: [Day 6 thread](https://github.com/orgs/qodo-hackathon/discussions/8)
+**What was built:** an investigation of ticket #16 (OpenAI provider) with Qodo Codebase Wisdom before writing
+code. It found that #15 and #16 conflict on the provider interface, that `httpx` was missing, and that the
+ticket's timeout test did not meet rule 1. Every claim is cited to `file:line` or marked unverified.
+
+**Links:** [PR #18](https://github.com/sksangita/evergreen-agents/pull/18),
+[`day6-ticket-16-investigation.md`](day6-ticket-16-investigation.md)
 
 ---
 
-## Backlog after Day 5
+## Day 7: Resolve Qodo's PR review findings
+
+**What was built:** enforced LLM timeouts (#15) and the opt-in OpenAI provider (#16) in one PR, because the Day
+6 investigation showed they conflict if built separately. Qodo's finding was reproduced, fixed with a failing
+test, and the final review on the head was clean.
+
+**Links:** [PR #19](https://github.com/sksangita/evergreen-agents/pull/19)
+
+---
+
+## Day 8: Review local changes before commit
+
+**What was built:** timezone-aware `measured_at` with date and zone shown to caregivers (#13, rule 6), reviewed
+with the Qodo Reviewer on uncommitted changes over 3 rounds before the PR.
+
+**Links:** [PR #21](https://github.com/sksangita/evergreen-agents/pull/21)
+
+---
+
+## Day 9: Quality gate for review loops
+
+**What was built:** the gate in `AGENTS.md`: fix every valid High and Medium finding with a failing-first
+test, report Low findings to a person, the final review must be complete and cover the head, at most 3 rounds,
+NOT DONE otherwise.
+
+**Links:** [PR #20](https://github.com/sksangita/evergreen-agents/pull/20)
+
+---
+
+## Day 10: Ticket to main
+
+**What was built:** ticket #22 (resting heart rate as a second vital) taken from ticket to `main` through the
+automated dev agent, CI, Qodo review and a manual Review Resolver fix, plus the factory diagram with its gates
+and the gaps found (the fix agent could not start, `/review` was manual on bot PRs).
+
+**Links:** [PR #23](https://github.com/sksangita/evergreen-agents/pull/23),
+[PR #24](https://github.com/sksangita/evergreen-agents/pull/24), [`factory-diagram.md`](factory-diagram.md)
+
+---
+
+## Day 11: Make the reviewer yours
+
+**What was built:** the same planted deviations reviewed under three rule setups. Only with a dedicated
+`AGENTS.md` rule did Qodo flag the loosened test assertion and cite that rule, so rule 7 (existing tests are not
+weakened) was added. `REVIEW.md` and the guideline text were removed. `.pr_agent.toml` keeps `override_effort`
+and `show_context_used`.
+
+**Links:** [PR #34](https://github.com/sksangita/evergreen-agents/pull/34),
+[PR #31](https://github.com/sksangita/evergreen-agents/pull/31),
+[`day11-12-evidence.md`](day11-12-evidence.md)
+
+---
+
+## Day 12: Give your factory the full picture
+
+**What was built:** a test of ticket #22 as a review source. A planted change that broke the ticket's CLI
+expectation got a High finding citing the ticket, and Context sources listed it. The first attempt (PR #36) was
+confounded by carried-over findings, so a fresh single-commit PR (#37) was used.
+
+**Links:** [PR #37](https://github.com/sksangita/evergreen-agents/pull/37),
+[PR #38](https://github.com/sksangita/evergreen-agents/pull/38) (saved evidence),
+[`day11-12-evidence.md`](day11-12-evidence.md)
+
+---
+
+## Day 13: Teach your factory a new skill
+
+**What was built:** the `check-new-vital` Claude Code skill. A script audits a vital for everything rule 5
+needs (contracts, thresholds and version, eval edges, elder and caregiver text, CLI, README) and reports PASS,
+FAIL or INCOMPLETE. Tested in fresh `claude -p` sessions (heart rate PASS, a half-added glucose vital FAIL, a
+stop for missing inputs). Qodo found 7 Medium issues in the skill in round 1 and 1 in round 3, all fixed. Round
+4 was clean.
+
+**Links:** [PR #39](https://github.com/sksangita/evergreen-agents/pull/39),
+[`.claude/skills/check-new-vital/`](../.claude/skills/check-new-vital/SKILL.md),
+[`evidence/skill-runs/`](evidence/skill-runs/)
+
+---
+
+## Day 14: Turn your quality gate into a workflow
+
+**What was built:** Qodo workflow `evergreen-medium-gate-workflow` (repository scope, no Medium or higher
+finding, add the "Qodo approved" label) and an approval guard on `core/rules/**`. PR A (#40, `--json` CLI
+output, outside the guard) had three complete, clean reviews but never got the label, even with the guard
+removed. The cause is unresolved. PR B (inside the guard) was not opened. Posted as INCOMPLETE.
+
+**Links:** [PR #40](https://github.com/sksangita/evergreen-agents/pull/40),
+[`day14-evidence.md`](day14-evidence.md), [predictions at `54c72d5`](https://github.com/sksangita/evergreen-agents/blob/54c72d588e1f6e52e70d3a36aa904660f1046850/docs/evidence/day14-predictions.md)
+
+---
+
+## Backlog after Day 14
 
 | Ticket | What | State |
 |---|---|---|
 | [#6](https://github.com/sksangita/evergreen-agents/issues/6) | Guardrail v1: block unsafe model text before it reaches the elder | open |
-| [#13](https://github.com/sksangita/evergreen-agents/issues/13) | Timezone-aware `measured_at` | open |
-| [#15](https://github.com/sksangita/evergreen-agents/issues/15) | Enforced LLM timeouts | open |
-| [#16](https://github.com/sksangita/evergreen-agents/issues/16) | OpenAI provider in `core/llm` | open |
+| [#13](https://github.com/sksangita/evergreen-agents/issues/13) | Timezone-aware `measured_at` | closed |
+| [#15](https://github.com/sksangita/evergreen-agents/issues/15) | Enforced LLM timeouts | closed |
+| [#16](https://github.com/sksangita/evergreen-agents/issues/16) | OpenAI provider in `core/llm` | closed |
+| [#22](https://github.com/sksangita/evergreen-agents/issues/22) | Resting heart rate as a second vital | closed |
