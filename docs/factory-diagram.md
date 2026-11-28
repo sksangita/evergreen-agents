@@ -1,6 +1,6 @@
 # The factory: from ticket to main
 
-Everything built in Days 6 to 10, in one picture. Two ways to build (by hand with a coding agent, or by the
+Everything built in Days 6 to 14, in one picture. Two ways to build (by hand with a coding agent, or by the
 GitHub automation), one shared path to `main`. Rules and the definition of done are in `AGENTS.md`
 ("Quality gate for review loops"), which every agent reads.
 
@@ -20,6 +20,7 @@ flowchart TD
 
   subgraph LA["STAGE 2, LANE A - BUILD BY HAND, code uncommitted (Day 8)"]
       IMP["Coding agent implements<br/>reads AGENTS.md, tests with the change"]:::tool
+      SK["check-new-vital skill (Day 13)<br/>every piece AGENTS.md rule 5 needs"]:::tool
       G2A{"GATE 2A: make lint + make test"}:::gate
       QL["Qodo Reviewer skill<br/>qodo review --repo owner/repo"]:::tool
       G2B{"GATE 2B: High / Medium gate<br/>no valid High or Medium open<br/>Low listed, code unchanged<br/>review complete, covers final tree"}:::gate
@@ -38,7 +39,11 @@ flowchart TD
     FIX["FIX AGENT: agent-fix.yml<br/>on Qodo comment, Codex + fix.md<br/>2 rounds: fix-round-1, fix-round-2"]:::tool
   end
 
-  subgraph S4["STAGE 4 - MERGE"]
+  subgraph S4["STAGE 4 - APPROVAL AND MERGE (Day 14)"]
+    WF["Qodo workflow evergreen-medium-gate-workflow<br/>repo scope: no Medium+ findings,<br/>all categories and types"]:::tool
+    GD{"Approval guard<br/>PR touches core/rules/** ?"}:::gate
+    LBL["Qodo approved label<br/>= met the workflow criteria only,<br/>not proof that checks passed"]:::tool
+    HR(["HUMAN review required<br/>no label, no auto approval"]):::human
     G5{"GATE 5: pre-merge checklist<br/>CI and review both on the same head<br/>Low findings acknowledged<br/>rule 4 paths human-reviewed<br/>PR text matches what shipped"}:::gate
     D5(["HUMAN: approve and merge<br/>no agent merges"]):::human
     MAIN["main<br/>ci.yml runs again"]:::tool
@@ -52,6 +57,7 @@ flowchart TD
   G1 -- "pass: add label" --> DEV
 
   IMP --> G2A
+  IMP -- "VitalKind added or changed" --> SK --> G2A
   G2A -- "fail" --> IMP
   G2A -- "pass" --> QL --> G2B
   G2B -- "valid High or Medium open" --> IMP
@@ -70,7 +76,9 @@ flowchart TD
   FIX -- "push, new head" --> G3
   FIX -- "open after round 2" --> STOP
   G4 -- "stalled or contested" --> STOP
-  G4 -- "met" --> G5
+  G4 -- "met" --> WF --> GD
+  GD -- "yes" --> HR --> G5
+  GD -- "no" --> LBL --> G5
   G5 -- "item missing" --> RR
   G5 -- "all hold" --> D5 --> MAIN
 ```
@@ -88,6 +96,9 @@ Colours: green = a tool or agent does the work, yellow = a gate, blue = a human,
 | DEV AGENT, `agent.yml` | `ready-for-agent` label starts Codex on one ticket. Read-only token makes a patch, a second job pushes `agent/ticket-<n>` and opens the PR. Refuses an empty patch or a `.github/` change. | GitHub Actions |
 | FIX AGENT, `agent-fix.yml` | Qodo's comment starts Codex on the findings. Max 2 rounds, then `agent-blocked`. | GitHub Actions |
 | `ci.yml` | `make install`, `make lint`, `make test` on every PR and on `main`. | GitHub Actions |
+| `check-new-vital` skill | Audits a vital for rule 5: contracts, thresholds and versions, eval edges, elder and caregiver text, CLI, README. PASS, FAIL or INCOMPLETE. | `.claude/skills/check-new-vital/` |
+| Qodo workflow `evergreen-medium-gate-workflow` | When a review finishes with no Medium or higher finding, adds the "Qodo approved" label. Never approves or merges. | Qodo portal, Workflows, repository scope |
+| Approval guard `core/rules/**` | A PR touching the rule engine or thresholds gets no label and no auto approval, even when clean. | Qodo portal, Approval guards |
 | `AGENTS.md` | The 7 rules, the High/Medium/Low gate, and the final report format. | Repo root |
 | `.github/agent/implement.md`, `fix.md` | The prompts the two agents run. | Repo |
 
@@ -100,7 +111,8 @@ Colours: green = a tool or agent does the work, yellow = a gate, blue = a human,
 | 2B. Local High/Medium gate | No valid High or Medium open. Every Low listed with the code unchanged. Review complete and covering the final tree. | `qodo review` result; each finding reproduced; a test that fails without the fix | Fix, run 2A, review again. Contested finding: report evidence. Stalled or 3 rounds: stop. | You, for disagreements and Low |
 | 3. CI | `test` check passes on the PR head | GitHub Actions run | Back to a fix | The agent |
 | 4. PR High/Medium gate | Review complete, `commit_sha` equals the PR head, no valid High or Medium open. Low listed for a human. | `qodo read pr-review-session findings`, `gh pr view --json headRefOid` | Resolver or Fix agent fixes and pushes; wait for a review of the new head. Stalled or contested: stop. | You, for disagreements |
-| 5. Pre-merge | Everything above holds on the current head. Rule 4 paths human-reviewed. PR text matches the diff. | Checklist | Back to the failing gate | You: approve and merge |
+| Workflow and guard | Qodo adds "Qodo approved" when Gate 4's severity condition holds and no guard applies. A guarded path goes to a person. | Label event on the PR (`gh api .../issues/<n>/events`). PR Triage shows no workflow activity | Treat a missing label as "not shown eligible", not as a pass or a fail | Qodo, then you |
+| 5. Pre-merge | Everything above holds on the current head. The label is not a substitute for CI, tests or acceptance checks. Rule 4 paths human-reviewed. PR text matches the diff. | Checklist | Back to the failing gate | You: approve and merge |
 
 **High/Medium gate in one line:** fix every valid High and Medium (with a test that fails without the fix),
 only report Low, never close a contested finding yourself, and the final review must be complete and cover the
@@ -136,3 +148,10 @@ reverted, accepted the heart-rate thresholds (rule 4), acknowledged the Low find
 5. **Dev agent scope:** Codex changed more than the ticket asked. A reviewer checks the diff against the acceptance criteria.
 6. **CI needs approval** on PRs opened by automation.
 7. **PR text goes stale:** the agent's report said NOT DONE after the fixes. Gate 5 includes "PR text matches what shipped" for this reason.
+
+## What the Day 14 run showed (PR #40, outside the guard)
+
+The workflow did not add the label: three complete, clean reviews on head `54c72d5`, with and without the
+guard, and no label event. The cause is unresolved. Details and what was ruled out:
+[`day14-evidence.md`](day14-evidence.md). Until the label is seen working, Gate 5 is checked by hand exactly as
+before.

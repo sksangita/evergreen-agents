@@ -38,3 +38,14 @@ Check a synthetic resting heart rate (bpm):
 ```bash
 uv run python -m agents.health_sentinel hr 128
 ```
+
+## Adding a vital
+
+AGENTS.md rule 5 says a new vital arrives with its rules, units and tests. The Claude Code skill
+`check-new-vital` checks every piece and lists what is missing:
+
+```bash
+uv run python .claude/skills/check-new-vital/scripts/check_vital.py heart_rate hr main
+```
+
+How the work flows from ticket to `main`, with every gate: [`docs/factory-diagram.md`](docs/factory-diagram.md).
