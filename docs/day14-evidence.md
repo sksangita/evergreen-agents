@@ -2,7 +2,7 @@
 
 Challenge: turn the saved gate into a Qodo workflow that adds the "Qodo approved" label, protect one path with
 an approval guard, and compare two PRs (one outside the guarded path, one inside) with predictions written
-before review. Predictions: [`evidence/day14-predictions.md`](evidence/day14-predictions.md).
+before review. Predictions: [`day14-predictions.md` at commit `54c72d5`](https://github.com/sksangita/evergreen-agents/blob/54c72d588e1f6e52e70d3a36aa904660f1046850/docs/evidence/day14-predictions.md), committed in PR #40 before its first review.
 
 **Result: INCOMPLETE.** The outside PR had three complete, clean reviews and never got the label. The cause is
 unresolved. The inside PR was not opened.

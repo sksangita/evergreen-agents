@@ -216,7 +216,7 @@ output, outside the guard) had three complete, clean reviews but never got the l
 removed. The cause is unresolved. PR B (inside the guard) was not opened. Posted as INCOMPLETE.
 
 **Links:** [PR #40](https://github.com/sksangita/evergreen-agents/pull/40),
-[`day14-evidence.md`](day14-evidence.md), [`evidence/day14-predictions.md`](evidence/day14-predictions.md)
+[`day14-evidence.md`](day14-evidence.md), [predictions at `54c72d5`](https://github.com/sksangita/evergreen-agents/blob/54c72d588e1f6e52e70d3a36aa904660f1046850/docs/evidence/day14-predictions.md)
 
 ---
 
